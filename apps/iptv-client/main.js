@@ -88,8 +88,7 @@ var Player = {
 
     // A link Base64 elkódolása, hogy eltűnjön belőle a .m3u8 kiterjesztés
     var b64url = btoa(url);
-    var proxyIp = 'http://192.168.1.247:5000/stream.ts?b64=';
-    this.currentUrl = proxyIp + b64url;
+    this.currentUrl = AppConfig.proxyUrl + b64url;
 
     this.setArea(this.aspect);
     this.setStatus('Connecting to proxy...');
@@ -719,10 +718,7 @@ var App = {
   closeGuide: function () { document.getElementById('guideModal').className = 'modal hidden'; },
 
   loadEpg: function () {
-    var urls = [
-      'https://kizman.net/guide/guide.xml',
-      'https://raw.githubusercontent.com/dobrosi/xmltv/refs/heads/main/channels.xml'
-    ];
+    var urls = AppConfig.epgUrls;
     var self = this;
     var trySource = function (position) {
       if (position >= urls.length) return;

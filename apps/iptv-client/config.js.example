@@ -1,0 +1,7 @@
+var AppConfig = {
+  epgUrls: [
+    'https://kizman.net/guide/guide.xml',
+    'https://raw.githubusercontent.com/dobrosi/xmltv/refs/heads/main/channels.xml'
+  ],
+  proxyUrl: 'http://192.168.1.247:5000/stream.ts?b64='
+};

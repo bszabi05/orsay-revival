@@ -70,6 +70,7 @@ def build_archive(archive_path: Path) -> None:
                 if (
                     source_path.name == WIDGETLIST_NAME
                     or source_path.name.endswith(".json.example")
+                    or source_path.name.endswith(".js.example")
                 ):
                     continue
                 # relative_to(WIDGET_DIR) is intentional: no app directory
