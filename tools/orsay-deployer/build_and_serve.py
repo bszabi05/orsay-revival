@@ -14,9 +14,9 @@ The generated server_root directory contains both files that the TV needs:
     server_root/widgetlist.xml
     server_root/orsay_tv_app.zip
 
-Run from the Flutter project root:
+Run from the repository root or from this directory:
 
-    python build_and_serve.py
+    python tools/orsay-deployer/build_and_serve.py
 
 Stop the server with Ctrl+C.
 """
@@ -31,9 +31,10 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-WIDGET_DIR = PROJECT_ROOT / "orsay_tv_app"
-SERVER_ROOT = PROJECT_ROOT / "server_root"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+DEPLOYER_ROOT = REPOSITORY_ROOT / "tools" / "orsay-deployer"
+WIDGET_DIR = REPOSITORY_ROOT / "apps" / "iptv-client"
+SERVER_ROOT = DEPLOYER_ROOT / "server_root"
 WIDGETLIST_NAME = "widgetlist.xml"
 ARCHIVE_NAME = "orsay_tv_app.zip"
 DOWNLOAD_URL = "http://192.168.1.247/orsay_tv_app.zip"
@@ -66,10 +67,13 @@ def build_archive(archive_path: Path) -> None:
                 # widgetlist.xml belongs to the IP Sync server root, not the
                 # installed widget package. The server version is generated
                 # below after the final ZIP size is known.
-                if source_path.name == WIDGETLIST_NAME:
+                if (
+                    source_path.name == WIDGETLIST_NAME
+                    or source_path.name.endswith(".json.example")
+                ):
                     continue
-                # relative_to(WIDGET_DIR) is intentional: no orsay_tv_app/
-                # directory is written inside the archive.
+                # relative_to(WIDGET_DIR) is intentional: no app directory
+                # is written inside the archive.
                 archive_name = source_path.relative_to(WIDGET_DIR).as_posix()
                 archive.write(source_path, archive_name)
 
@@ -77,7 +81,6 @@ def build_archive(archive_path: Path) -> None:
 def generate_widgetlist(archive_path: Path, output_path: Path) -> None:
     """Write the strict Orsay IP Sync response with the ZIP byte size."""
     zip_size = archive_path.stat().st_size
-    base_url = DOWNLOAD_URL.rsplit("/", 1)[0]
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rsp stat="ok">
   <list>

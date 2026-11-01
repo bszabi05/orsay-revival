@@ -1,2 +1,4 @@
 channels.json
 *.exe
+
+tools\orsay-deployer\server_root
