@@ -7,7 +7,6 @@
   <link rel="stylesheet" type="text/css" href="style.css" />
   <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/Widget.js"></script>
   <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/TVKeyValue.js"></script>
-  <!-- HLS.js betöltése a playlistek megbízhatóbb olvasásához -->
 <script src="hls.min.js"></script>
 </head>
 <body>
@@ -38,11 +37,9 @@
     </div>
 
     <div id="playerView" class="hidden">
-      <!-- C++ object helyett HTML5 video tag -->
       <video id="html5Player" style="position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 21; background: #000; object-fit: contain;"></video>
       <div id="playerShade"></div>
 
-      <!-- A player control div-ek maradnak -->
       <div id="playerHeader">
         <span id="playerChannelName"></span>
         <span id="playerProgramName"></span>

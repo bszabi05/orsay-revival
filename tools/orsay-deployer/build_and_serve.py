@@ -77,7 +77,6 @@ def build_archive(archive_path: Path) -> None:
 def generate_widgetlist(archive_path: Path, output_path: Path) -> None:
     """Write the strict Orsay IP Sync response with the ZIP byte size."""
     zip_size = archive_path.stat().st_size
-    # thumbnail URL-t a DOWNLOAD_URL-bol szarmaztatjuk
     base_url = DOWNLOAD_URL.rsplit("/", 1)[0]
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rsp stat="ok">
@@ -100,7 +99,6 @@ def prepare_server_root() -> Path:
     archive_path = SERVER_ROOT / ARCHIVE_NAME
     build_archive(archive_path)
     generate_widgetlist(archive_path, SERVER_ROOT / WIDGETLIST_NAME)
-    # icon.png-t kulon is kimassoljuk, hogy a thumbnail URL elerheto legyen
     icon_src = WIDGET_DIR / "icon.png"
     if icon_src.is_file():
         import shutil

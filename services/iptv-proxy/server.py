@@ -10,7 +10,6 @@ def stream():
     if not b64_url:
         return "Missing URL", 400
 
-    # Visszafejtjük a Base64-el elrejtett eredeti m3u8 linket
     try:
         url = base64.b64decode(b64_url).decode('utf-8')
     except Exception:
