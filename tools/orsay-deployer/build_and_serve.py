@@ -38,6 +38,7 @@ SERVER_ROOT = DEPLOYER_ROOT / "server_root"
 WIDGETLIST_NAME = "widgetlist.xml"
 ARCHIVE_NAME = "orsay_tv_app.zip"
 DOWNLOAD_URL = "http://192.168.1.247/orsay_tv_app.zip"
+ICON_URL = "http://192.168.1.247/icon.png"
 
 
 def build_archive(archive_path: Path) -> None:
@@ -95,6 +96,7 @@ def generate_widgetlist(archive_path: Path, output_path: Path) -> None:
       <title>Legacy TV</title>
       <compression size="{zip_size}" type="zip" />
       <description>Legacy TV - HLS/m3u8 IPTV widget</description>
+      <icon>{ICON_URL}</icon>
       <download>{DOWNLOAD_URL}</download>
     </widget>
   </list>
@@ -110,9 +112,10 @@ def prepare_server_root() -> Path:
     build_archive(archive_path)
     generate_widgetlist(archive_path, SERVER_ROOT / WIDGETLIST_NAME)
     icon_src = WIDGET_DIR / "icon.png"
-    if icon_src.is_file():
-        import shutil
-        shutil.copy2(icon_src, SERVER_ROOT / "icon.png")
+    if not icon_src.is_file():
+        raise FileNotFoundError(f"Widget icon does not exist: {icon_src}")
+    import shutil
+    shutil.copy2(icon_src, SERVER_ROOT / "icon.png")
     return archive_path
 
 

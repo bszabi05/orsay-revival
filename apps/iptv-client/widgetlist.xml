@@ -5,6 +5,7 @@
       <title>Legacy TV</title>
       <compression size="24501" type="zip" />
       <description>Legacy TV - HLS/m3u8 IPTV widget</description>
+      <icon>http://192.168.1.247/icon.png</icon>
       <download>http://192.168.1.247/orsay_tv_app.zip</download>
     </widget>
   </list>

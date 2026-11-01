@@ -3,7 +3,7 @@
   <widgetname>Legacy TV</widgetname>
   <widgetid>legacy.tv.app</widgetid>
   <description>Lightweight live television widget</description>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <icon>icon.png</icon>
   <author>TV App</author>
   <width>960</width>

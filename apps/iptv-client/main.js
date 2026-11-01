@@ -397,6 +397,7 @@ var App = {
     }
     row.innerHTML = html;
     row.className = html ? '' : 'hidden';
+    document.getElementById('channelGrid').style.top = html ? '184px' : '119px';
   },
 
   renderPagination: function () {

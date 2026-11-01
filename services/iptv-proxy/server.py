@@ -74,4 +74,4 @@ def proxy_logo():
         return Response(transparent_pixel, mimetype='image/gif')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=7833)

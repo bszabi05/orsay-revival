@@ -163,6 +163,7 @@ button:disabled {
   left: 22px;
   top: 119px;
   height: 55px;
+  padding-bottom: 10px;
 }
 .historyItem {
   display: inline-block;
