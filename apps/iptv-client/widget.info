@@ -1,0 +1,9 @@
+{
+  "widgetname": "Legacy TV",
+  "widgetid": "legacy.tv.app",
+  "version": "1.0.0",
+  "description": "Lightweight Samsung Orsay live TV widget",
+  "width": 960,
+  "height": 540,
+  "entry": "index.html"
+}

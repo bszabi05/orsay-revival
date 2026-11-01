@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta name="viewport" content="width=960, height=540" />
+  <title>Legacy TV</title>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+  <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/Widget.js"></script>
+  <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/TVKeyValue.js"></script>
+  <!-- HLS.js betöltése a playlistek megbízhatóbb olvasásához -->
+<script src="hls.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div id="topBar">
+      <span id="title">LEGACY TV</span>
+      <span id="status">Loading channels...</span>
+      <button id="refreshButton" class="topButton" onclick="App.refreshChannels();">Refresh</button>
+    </div>
+
+    <div id="filters">
+      <button id="favoritesFilter" class="chip active" onclick="App.setCategory('favorites');">Favorites</button>
+      <button id="allFilter" class="chip" onclick="App.setCategory('all');">All</button>
+      <select id="categoryFilter" onchange="App.setCategory(this.value);">
+        <option value="all">All categories</option>
+      </select>
+      <select id="languageFilter" onchange="App.setLanguage(this.value);">
+        <option value="all">All languages</option>
+      </select>
+    </div>
+
+    <div id="historyRow" class="hidden"></div>
+    <div id="channelGrid"></div>
+    <div id="pagination">
+      <button id="previousPageButton" onclick="App.previousPage();">Previous page</button>
+      <span id="pageLabel">Page 1 / 1</span>
+      <button id="nextPageButton" onclick="App.nextPage();">Next page</button>
+    </div>
+
+    <div id="playerView" class="hidden">
+      <!-- C++ object helyett HTML5 video tag -->
+      <video id="html5Player" style="position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 21; background: #000; object-fit: contain;"></video>
+      <div id="playerShade"></div>
+
+      <!-- A player control div-ek maradnak -->
+      <div id="playerHeader">
+        <span id="playerChannelName"></span>
+        <span id="playerProgramName"></span>
+      </div>
+      <div id="playerControls">
+        <button id="backButton" onclick="App.closePlayer();">Back</button>
+        <button onclick="App.previousChannel();">Previous</button>
+        <button onclick="App.togglePlay();">Play / Pause</button>
+        <button onclick="App.nextChannel();">Next</button>
+        <button onclick="App.changeAspect();">Aspect</button>
+        <button onclick="App.changeVolume(-5);">Volume -</button>
+        <span id="volumeLabel">100%</span>
+        <button onclick="App.changeVolume(5);">Volume +</button>
+        <button onclick="App.showGuide();">Guide</button>
+        <button onclick="App.cycleSleepTimer();">Sleep</button>
+      </div>
+      <div id="gestureHint">Drag vertically: left = brightness, right = volume</div>
+    </div>
+
+    <div id="guideModal" class="modal hidden">
+      <div class="modalPanel">
+        <button class="modalClose" onclick="App.closeGuide();">Close</button>
+        <h2 id="guideTitle">Daily guide</h2>
+        <div id="guideContent"></div>
+      </div>
+    </div>
+  </div>
+<script src="hls.min.js"></script>
+  <script type="text/javascript" src="main.js"></script>
+</body>
+</html>

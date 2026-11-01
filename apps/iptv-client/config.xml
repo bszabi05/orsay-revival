@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget>
+  <widgetname>Legacy TV</widgetname>
+  <widgetid>legacy.tv.app</widgetid>
+  <description>Lightweight live television widget</description>
+  <version>1.0.0</version>
+  <icon>icon.png</icon>
+  <author>TV App</author>
+  <width>960</width>
+  <height>540</height>
+  <mouse>y</mouse>
+  <type>user</type>
+  <cdata>
+    <entry>index.html</entry>
+  </cdata>
+</widget>

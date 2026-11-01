@@ -1,0 +1,83 @@
+/*
+  Conservative CSS for the Orsay WebKit engine.
+  Avoid flexbox, CSS variables and newer selectors. Fixed pixel
+  dimensions are intentional because the TV widget viewport is 960x540.
+*/
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 960px;
+  height: 540px;
+  overflow: hidden;
+  background: #0e1018;
+  color: #f2f2f2;
+  font-family: Arial, sans-serif;
+  font-size: 15px;
+  cursor: default;
+}
+
+button, select {
+  background: #252b3a;
+  border: 1px solid #48516a;
+  color: #ffffff;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+button:hover, button.focused, select:focus, .channelCard:hover, .channelCard.focused {
+  background: #3d2c75;
+  border-color: #52d7e8;
+}
+button:disabled {
+  color: #687087;
+  background: #171b28;
+  border-color: #30394f;
+}
+
+#app { width: 960px; height: 540px; position: relative; }
+#topBar { height: 48px; line-height: 48px; padding: 0 20px; background: #171b28; }
+#title { color: #55dbea; font-size: 22px; font-weight: bold; letter-spacing: 2px; }
+#status { margin-left: 25px; color: #9da5bb; }
+.topButton { float: right; margin-top: 8px; }
+#filters { height: 42px; padding: 7px 20px 0; background: #121621; }
+.chip { margin-right: 7px; }
+.chip.active { background: #513e94; }
+#categoryFilter, #languageFilter { margin-left: 6px; width: 155px; }
+#channelGrid { position: absolute; left: 20px; top: 105px; width: 920px; height: 360px; overflow: hidden; }
+.channelCard {
+  position: relative; float: left; width: 176px; height: 112px;
+  margin: 0 8px 8px 0; padding: 5px; box-sizing: border-box;
+  background: #1b2030; border: 2px solid #30394f; cursor: pointer;
+}
+.favoriteButton { cursor: pointer; }
+.channelCard img { width: 48px; height: 38px; margin: 1px auto; display: block; }
+.channelCard .channelName { height: 18px; overflow: hidden; font-size: 14px; font-weight: bold; }
+.channelCard .channelMeta { color: #8e9ab2; font-size: 12px; }
+.channelCard .program { height: 15px; margin-top: 2px; overflow: hidden; color: #d7eff2; font-size: 11px; }
+.progress { height: 5px; margin-top: 4px; background: #424a5d; }
+.progress span { display: block; height: 5px; background: #55dbea; }
+#pagination { position: absolute; left: 20px; top: 472px; width: 920px; height: 42px; text-align: center; }
+#pagination button { margin: 0 12px; }
+#pageLabel { display: inline-block; min-width: 90px; color: #b6c1d9; }
+#historyRow { position: absolute; left: 20px; top: 105px; height: 55px; }
+.historyItem { display: inline-block; margin-right: 8px; padding: 8px; background: #272d3d; cursor: pointer; }
+.hidden { display: none !important; }
+#playerView { position: absolute; left: 0; top: 0; width: 960px; height: 540px; background: #000000; z-index: 20; }
+#pluginPlayer { position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 21; }
+#playerShade { position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 22; }
+#playerHeader, #playerControls, #gestureHint { position: absolute; z-index: 23; }
+#playerHeader { left: 22px; top: 18px; right: 22px; padding: 10px; background: #000000; opacity: 0.75; }
+#playerChannelName { font-size: 20px; font-weight: bold; }
+#playerProgramName { margin-left: 20px; color: #b6c1d9; }
+#playerControls { left: 20px; right: 20px; bottom: 20px; padding: 10px; background: #000000; opacity: 0.9; }
+#playerControls button { margin-right: 6px; }
+#volumeLabel { display: inline-block; width: 42px; color: #55dbea; text-align: center; }
+#gestureHint { right: 20px; top: 18px; color: #cbd1dd; font-size: 11px; }
+.modal { position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 40; background: #000000; opacity: 0.96; }
+.modalPanel { position: absolute; left: 100px; top: 45px; width: 760px; height: 430px; padding: 18px; overflow: hidden; background: #1a2030; }
+.modalClose { float: right; }
+.modalPanel h2 { color: #55dbea; }
+.guideEntry { padding: 8px; border-bottom: 1px solid #343d52; }
+.guideEntry.live { background: #3d2c75; }
