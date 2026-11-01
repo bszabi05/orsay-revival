@@ -158,21 +158,6 @@ button:disabled {
   color: #9db8c1;
   font-size: 13px;
 }
-#historyRow {
-  position: absolute;
-  left: 22px;
-  top: 119px;
-  height: 55px;
-  padding-bottom: 10px;
-}
-.historyItem {
-  display: inline-block;
-  margin-right: 8px;
-  padding: 8px;
-  background: #1b303a;
-  border: 1px solid #2e5360;
-  cursor: pointer;
-}
 .hidden { display: none !important; }
 #playerView { position: absolute; left: 0; top: 0; width: 960px; height: 540px; background: #000000; z-index: 20; }
 #pluginPlayer { position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 21; }

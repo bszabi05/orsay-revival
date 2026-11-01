@@ -156,7 +156,6 @@ var App = {
   channels: [],
   visibleChannels: [],
   favorites: [],
-  history: [],
   epg: {},
   epgNames: {},
   category: 'favorites',
@@ -199,14 +198,12 @@ var App = {
 
   loadState: function () {
     var storedFavorites = localStorage.getItem('legacy_tv_favorites');
-    var storedHistory = localStorage.getItem('legacy_tv_history');
     try { this.favorites = storedFavorites ? JSON.parse(storedFavorites) : []; } catch (e1) { this.favorites = []; }
-    try { this.history = storedHistory ? JSON.parse(storedHistory) : []; } catch (e2) { this.history = []; }
+    localStorage.removeItem('legacy_tv_history');
   },
 
   saveState: function () {
     localStorage.setItem('legacy_tv_favorites', JSON.stringify(this.favorites));
-    localStorage.setItem('legacy_tv_history', JSON.stringify(this.history));
   },
 
   cycleSleepTimer: function () {
@@ -358,7 +355,6 @@ var App = {
     }
     grid.innerHTML = html;
     this.renderPagination();
-    this.renderHistory();
     this.focusItems = this.findFocusableCards();
     this.setFocus(0);
   },
@@ -382,22 +378,6 @@ var App = {
       this.escape(channel.language || '') + '</div>' +
       '<div class="program">' + (program ? this.escape(program.title) : 'No EPG data') + '</div>' +
       '<div class="progress"><span style="width:' + progress + '%;"></span></div></div>';
-  },
-
-  renderHistory: function () {
-    var row = document.getElementById('historyRow');
-    var html = '';
-    var i;
-    for (i = 0; i < this.history.length; i++) {
-      var channel = this.channelById(this.history[i]);
-      if (channel) {
-        html += '<span class="historyItem" data-id="' + this.escape(channel.id) + '">' +
-          this.escape(channel.name) + '</span>';
-      }
-    }
-    row.innerHTML = html;
-    row.className = html ? '' : 'hidden';
-    document.getElementById('channelGrid').style.top = html ? '184px' : '119px';
   },
 
   renderPagination: function () {
@@ -541,9 +521,6 @@ var App = {
     var channel = this.visibleChannels[index];
     if (!channel) return;
     this.currentChannel = channel;
-    this.history.unshift(channel.id);
-    this.history = this.uniqueFirstFive(this.history);
-    this.saveState();
     document.getElementById('playerChannelName').innerHTML = this.escape(channel.name);
     document.getElementById('playerProgramName').innerHTML = this.currentProgram(channel) ?
       this.escape(this.currentProgram(channel).title) : '';
@@ -568,7 +545,6 @@ var App = {
     this.hidePlayerControls();
     document.getElementById('playerView').className = 'hidden';
     this.currentChannel = null;
-    this.renderHistory();
   },
 
   previousChannel: function () {
@@ -609,7 +585,6 @@ var App = {
 
   bindMouseHandlers: function () {
     var grid = document.getElementById('channelGrid');
-    var history = document.getElementById('historyRow');
     var shade = document.getElementById('playerShade');
     var playerView = document.getElementById('playerView');
     var self = this;
@@ -649,17 +624,6 @@ var App = {
     };
     grid.onmouseup = function () {
       self.cancelLongPress();
-    };
-    history.onclick = function (event) {
-      event = event || window.event;
-      var target = event.target || event.srcElement;
-      while (target && target !== history) {
-        if (target.className && target.className.indexOf('historyItem') !== -1) {
-          self.openById(target.getAttribute('data-id'));
-          return;
-        }
-        target = target.parentNode;
-      }
     };
     playerView.onmousemove = function () {
       self.showPlayerControls();
@@ -862,15 +826,6 @@ var App = {
     var elapsed = new Date().getTime() - program.start.getTime();
     if (total <= 0) return 0;
     return Math.max(0, Math.min(100, Math.round(elapsed * 100 / total)));
-  },
-
-  uniqueFirstFive: function (items) {
-    var result = [];
-    var i;
-    for (i = 0; i < items.length && result.length < 5; i++) {
-      if (result.indexOf(items[i]) === -1) result.push(items[i]);
-    }
-    return result;
   },
 
   channelById: function (id) {
