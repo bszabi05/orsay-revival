@@ -86,7 +86,6 @@ var Player = {
     if (!url) return;
     this.stop();
 
-    // A link Base64 elkódolása, hogy eltűnjön belőle a .m3u8 kiterjesztés
     var b64url = btoa(url);
     this.currentUrl = AppConfig.proxyUrl + b64url;
 
@@ -174,6 +173,7 @@ var App = {
   longPressTimer: null,
   sleepTimer: null,
   sleepMinutes: 0,
+  playerControlsTimer: null,
 
   init: function () {
     Player.init();
@@ -366,7 +366,12 @@ var App = {
   cardHtml: function (channel, index) {
     var program = this.currentProgram(channel);
     var progress = program ? this.progress(program) : 0;
-    var logo = channel.logoUrl ? '<img src="' + this.escape(channel.logoUrl) + '" />' : '';
+    var logo = '';
+    if (channel.logoUrl) {
+      var encodedLogoUrl = encodeURIComponent(btoa(channel.logoUrl));
+      var proxiedLogoUrl = AppConfig.logoProxyUrl + '/logo?b64=' + encodedLogoUrl;
+      logo = '<img src="' + this.escape(proxiedLogoUrl) + '" />';
+    }
     var favoriteText = this.isFavorite(channel.id) ? 'Favorite' : 'Add favorite';
     return '<div class="channelCard" id="channel-' + index + '" tabindex="-1" data-index="' + index +
       '" data-id="' + this.escape(channel.id) + '">' +
@@ -468,6 +473,9 @@ var App = {
     window.onkeydown = function (event) {
       var code = event.keyCode;
       var key = self.keyName(code);
+      if (key && document.getElementById('playerView').className.indexOf('hidden') === -1) {
+        self.showPlayerControls();
+      }
       if (key === 'left' || key === 'right' || key === 'up' || key === 'down') {
         self.moveFocus(key);
         self.prevent(event);
@@ -539,6 +547,7 @@ var App = {
     document.getElementById('playerProgramName').innerHTML = this.currentProgram(channel) ?
       this.escape(this.currentProgram(channel).title) : '';
     document.getElementById('playerView').className = '';
+    this.hidePlayerControls();
     Player.play(channel.streamUrl);
   },
 
@@ -555,6 +564,7 @@ var App = {
 
   closePlayer: function () {
     Player.stop();
+    this.hidePlayerControls();
     document.getElementById('playerView').className = 'hidden';
     this.currentChannel = null;
     this.renderHistory();
@@ -600,6 +610,7 @@ var App = {
     var grid = document.getElementById('channelGrid');
     var history = document.getElementById('historyRow');
     var shade = document.getElementById('playerShade');
+    var playerView = document.getElementById('playerView');
     var self = this;
     grid.onclick = function (event) {
       event = event || window.event;
@@ -649,6 +660,9 @@ var App = {
         target = target.parentNode;
       }
     };
+    playerView.onmousemove = function () {
+      self.showPlayerControls();
+    };
     shade.onmousedown = function (event) {
       self.dragStartY = event.clientY;
       self.dragStartX = event.clientX;
@@ -667,6 +681,28 @@ var App = {
       self.dragStartY = null;
       self.dragStartX = null;
     };
+  },
+
+  showPlayerControls: function () {
+    var controls = document.getElementById('playerControls');
+    var header = document.getElementById('playerHeader');
+    if (!controls || !header) return;
+    controls.className = '';
+    header.className = '';
+    if (this.playerControlsTimer) clearTimeout(this.playerControlsTimer);
+    var self = this;
+    this.playerControlsTimer = setTimeout(function () {
+      self.hidePlayerControls();
+    }, 3500);
+  },
+
+  hidePlayerControls: function () {
+    var controls = document.getElementById('playerControls');
+    var header = document.getElementById('playerHeader');
+    if (this.playerControlsTimer) clearTimeout(this.playerControlsTimer);
+    this.playerControlsTimer = null;
+    if (controls) controls.className = 'controlsHidden';
+    if (header) header.className = 'controlsHidden';
   },
 
   setBrightness: function (value) {

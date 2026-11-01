@@ -9,17 +9,17 @@ html, body {
   width: 960px;
   height: 540px;
   overflow: hidden;
-  background: #0e1018;
-  color: #f2f2f2;
+  background: #0b1118;
+  color: #edf4f7;
   font-family: Arial, sans-serif;
   font-size: 15px;
   cursor: default;
 }
 
 button, select {
-  background: #252b3a;
-  border: 1px solid #48516a;
-  color: #ffffff;
+  background: #172532;
+  border: 1px solid #2e4657;
+  color: #eaf5f7;
   font-family: Arial, sans-serif;
   font-size: 14px;
   padding: 7px 12px;
@@ -27,57 +27,168 @@ button, select {
 }
 
 button:hover, button.focused, select:focus, .channelCard:hover, .channelCard.focused {
-  background: #3d2c75;
-  border-color: #52d7e8;
+  background: #153f4d;
+  border-color: #63d8df;
 }
 button:disabled {
-  color: #687087;
-  background: #171b28;
-  border-color: #30394f;
+  color: #657681;
+  background: #101a23;
+  border-color: #22333f;
 }
 
 #app { width: 960px; height: 540px; position: relative; }
-#topBar { height: 48px; line-height: 48px; padding: 0 20px; background: #171b28; }
-#title { color: #55dbea; font-size: 22px; font-weight: bold; letter-spacing: 2px; }
-#status { margin-left: 25px; color: #9da5bb; }
-.topButton { float: right; margin-top: 8px; }
-#filters { height: 42px; padding: 7px 20px 0; background: #121621; }
-.chip { margin-right: 7px; }
-.chip.active { background: #513e94; }
-#categoryFilter, #languageFilter { margin-left: 6px; width: 155px; }
-#channelGrid { position: absolute; left: 20px; top: 105px; width: 920px; height: 360px; overflow: hidden; }
-.channelCard {
-  position: relative; float: left; width: 176px; height: 112px;
-  margin: 0 8px 8px 0; padding: 5px; box-sizing: border-box;
-  background: #1b2030; border: 2px solid #30394f; cursor: pointer;
+#topBar {
+  height: 58px;
+  line-height: 58px;
+  padding: 0 22px;
+  background: #101c26;
+  border-bottom: 1px solid #263d4a;
 }
-.favoriteButton { cursor: pointer; }
-.channelCard img { width: 48px; height: 38px; margin: 1px auto; display: block; }
-.channelCard .channelName { height: 18px; overflow: hidden; font-size: 14px; font-weight: bold; }
-.channelCard .channelMeta { color: #8e9ab2; font-size: 12px; }
-.channelCard .program { height: 15px; margin-top: 2px; overflow: hidden; color: #d7eff2; font-size: 11px; }
-.progress { height: 5px; margin-top: 4px; background: #424a5d; }
-.progress span { display: block; height: 5px; background: #55dbea; }
-#pagination { position: absolute; left: 20px; top: 472px; width: 920px; height: 42px; text-align: center; }
+#title {
+  color: #63d8df;
+  font-size: 23px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+#status {
+  margin-left: 20px;
+  color: #91aab5;
+  font-size: 13px;
+}
+.topButton {
+  float: right;
+  margin-top: 13px;
+  padding-left: 18px;
+  padding-right: 18px;
+}
+#filters {
+  height: 43px;
+  padding: 9px 22px 0;
+  background: #0e1821;
+  border-bottom: 1px solid #1c303d;
+}
+.chip {
+  margin-right: 7px;
+  min-width: 76px;
+}
+.chip.active {
+  background: #1d6470;
+  border-color: #63d8df;
+  color: #ffffff;
+}
+#categoryFilter, #languageFilter {
+  margin-left: 6px;
+  width: 155px;
+}
+#channelGrid {
+  position: absolute;
+  left: 22px;
+  top: 119px;
+  width: 916px;
+  height: 346px;
+  overflow: hidden;
+}
+.channelCard {
+  position: relative;
+  float: left;
+  width: 176px;
+  height: 108px;
+  margin: 0 8px 9px 0;
+  padding: 7px 8px 6px;
+  box-sizing: border-box;
+  background: #14212c;
+  border: 1px solid #29404e;
+  cursor: pointer;
+}
+.favoriteButton {
+  position: absolute;
+  right: 7px;
+  top: 6px;
+  padding: 3px 6px;
+  font-size: 10px;
+  color: #a9c2c9;
+}
+.channelCard img {
+  width: 42px;
+  height: 32px;
+  margin: 1px auto 3px;
+  display: block;
+}
+.channelCard .channelName {
+  height: 18px;
+  padding-right: 3px;
+  overflow: hidden;
+  color: #f1f8f9;
+  font-size: 14px;
+  font-weight: bold;
+}
+.channelCard .channelMeta {
+  color: #78939f;
+  font-size: 11px;
+}
+.channelCard .program {
+  height: 15px;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #b9d5d9;
+  font-size: 11px;
+}
+.progress {
+  height: 4px;
+  margin-top: 5px;
+  background: #263d48;
+}
+.progress span {
+  display: block;
+  height: 4px;
+  background: #63d8df;
+}
+#pagination {
+  position: absolute;
+  left: 22px;
+  top: 477px;
+  width: 916px;
+  height: 42px;
+  text-align: center;
+}
 #pagination button { margin: 0 12px; }
-#pageLabel { display: inline-block; min-width: 90px; color: #b6c1d9; }
-#historyRow { position: absolute; left: 20px; top: 105px; height: 55px; }
-.historyItem { display: inline-block; margin-right: 8px; padding: 8px; background: #272d3d; cursor: pointer; }
+#pageLabel {
+  display: inline-block;
+  min-width: 90px;
+  color: #9db8c1;
+  font-size: 13px;
+}
+#historyRow {
+  position: absolute;
+  left: 22px;
+  top: 119px;
+  height: 55px;
+}
+.historyItem {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 8px;
+  background: #1b303a;
+  border: 1px solid #2e5360;
+  cursor: pointer;
+}
 .hidden { display: none !important; }
 #playerView { position: absolute; left: 0; top: 0; width: 960px; height: 540px; background: #000000; z-index: 20; }
 #pluginPlayer { position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 21; }
 #playerShade { position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 22; }
 #playerHeader, #playerControls, #gestureHint { position: absolute; z-index: 23; }
-#playerHeader { left: 22px; top: 18px; right: 22px; padding: 10px; background: #000000; opacity: 0.75; }
+#playerHeader { left: 22px; top: 18px; right: 22px; padding: 10px; background: #101c26; opacity: 0.92; border-left: 3px solid #63d8df; }
+#playerHeader.controlsHidden { display: none; }
 #playerChannelName { font-size: 20px; font-weight: bold; }
-#playerProgramName { margin-left: 20px; color: #b6c1d9; }
-#playerControls { left: 20px; right: 20px; bottom: 20px; padding: 10px; background: #000000; opacity: 0.9; }
+#playerProgramName { margin-left: 20px; color: #a9c2c9; }
+#playerControls { left: 20px; right: 20px; bottom: 20px; padding: 10px; background: #101c26; opacity: 0.94; border-top: 1px solid #2e5360; }
+#playerControls.controlsHidden { display: none; }
 #playerControls button { margin-right: 6px; }
-#volumeLabel { display: inline-block; width: 42px; color: #55dbea; text-align: center; }
+#volumeLabel { display: inline-block; width: 42px; color: #63d8df; text-align: center; }
 #gestureHint { right: 20px; top: 18px; color: #cbd1dd; font-size: 11px; }
-.modal { position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 40; background: #000000; opacity: 0.96; }
-.modalPanel { position: absolute; left: 100px; top: 45px; width: 760px; height: 430px; padding: 18px; overflow: hidden; background: #1a2030; }
+.modal { position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 40; background: #081017; opacity: 0.97; }
+.modalPanel { position: absolute; left: 100px; top: 45px; width: 760px; height: 430px; padding: 18px; overflow: hidden; background: #14212c; border: 1px solid #2e5360; }
 .modalClose { float: right; }
-.modalPanel h2 { color: #55dbea; }
-.guideEntry { padding: 8px; border-bottom: 1px solid #343d52; }
-.guideEntry.live { background: #3d2c75; }
+.modalPanel h2 { color: #63d8df; }
+.guideEntry { padding: 8px; border-bottom: 1px solid #29404e; color: #d7e8eb; }
+.guideEntry.live { background: #1d6470; }

@@ -1,6 +1,7 @@
 import subprocess
 import base64
 from flask import Flask, request, Response
+import urllib.request
 
 app = Flask(__name__)
 
@@ -48,6 +49,29 @@ def stream():
     response.headers['X-Accel-Buffering'] = 'no'
 
     return response
+
+@app.route('/logo')
+def proxy_logo():
+    b64_url = request.args.get('b64')
+    if not b64_url:
+        return "Missing URL", 400
+
+    try:
+        url = base64.b64decode(b64_url).decode('utf-8')
+
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            image_data = response.read()
+            content_type = response.headers.get('Content-Type', 'image/jpeg')
+
+            proxy_response = Response(image_data, mimetype=content_type)
+            proxy_response.headers['Cache-Control'] = 'public, max-age=86400' 
+            return proxy_response
+
+    except Exception as e:
+        print(f"Hiba a logó letöltésekor: {e}")
+        transparent_pixel = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
+        return Response(transparent_pixel, mimetype='image/gif')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

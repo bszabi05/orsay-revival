@@ -45,7 +45,13 @@ def build_archive(archive_path: Path) -> None:
     if not WIDGET_DIR.is_dir():
         raise FileNotFoundError(f"Widget directory does not exist: {WIDGET_DIR}")
 
-    required_files = ("config.xml", "widget.info", "index.html", "main.js")
+    required_files = (
+        "config.xml",
+        "widget.info",
+        "icon.png",
+        "index.html",
+        "main.js",
+    )
     missing_files = [
         name for name in required_files if not (WIDGET_DIR / name).is_file()
     ]

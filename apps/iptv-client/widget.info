@@ -3,6 +3,7 @@
   "widgetid": "legacy.tv.app",
   "version": "1.0.0",
   "description": "Lightweight Samsung Orsay live TV widget",
+  "icon": "icon.png",
   "width": 960,
   "height": 540,
   "entry": "index.html"
