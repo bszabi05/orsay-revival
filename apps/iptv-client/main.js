@@ -271,6 +271,12 @@ var App = {
     this.refreshChannels();
     this.loadEpg();
     this.startClock();
+    try {
+      window.focus();
+      if (document.body && document.body.focus) {
+        document.body.focus();
+      }
+    } catch (focusError) {}
   },
 
   updateVolumeUi: function (vol) {
@@ -337,23 +343,31 @@ var App = {
   },
 
   registerKeys: function () {
-    if (!pluginAPI || !pluginAPI.registKey || !tvKey) return;
-    var keys = [
-      tvKey.KEY_RED, tvKey.KEY_GREEN, tvKey.KEY_YELLOW, tvKey.KEY_BLUE,
-      tvKey.KEY_CH_UP, tvKey.KEY_CH_DOWN, tvKey.KEY_CHUP, tvKey.KEY_CHDOWN,
-      tvKey.KEY_PAGE_UP, tvKey.KEY_PAGE_DOWN,
-      tvKey.KEY_INFO, tvKey.KEY_INFOLINK,
-      tvKey.KEY_PLAY, tvKey.KEY_PAUSE, tvKey.KEY_STOP, tvKey.KEY_PLAY_PAUSE,
-      tvKey.KEY_0, tvKey.KEY_1, tvKey.KEY_2, tvKey.KEY_3, tvKey.KEY_4,
-      tvKey.KEY_5, tvKey.KEY_6, tvKey.KEY_7, tvKey.KEY_8, tvKey.KEY_9,
-      tvKey.KEY_VOL_UP, tvKey.KEY_VOL_DOWN, tvKey.KEY_MUTE
-    ];
-    for (var i = 0; i < keys.length; i++) {
-      try {
-        if (typeof keys[i] !== 'undefined') {
-          pluginAPI.registKey(keys[i]);
+    if (!pluginAPI || !pluginAPI.registKey) return;
+
+    if (tvKey) {
+      for (var k in tvKey) {
+        if (tvKey.hasOwnProperty(k) && typeof tvKey[k] === 'number') {
+          try {
+            pluginAPI.registKey(tvKey[k]);
+          } catch (e1) {}
         }
-      } catch (e) {}
+      }
+    }
+
+    var customKeys = [
+      65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77,
+      78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90,
+      97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
+      110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122,
+      123,
+      8, 13, 27, 32, 33, 34, 37, 38, 39, 40,
+      107, 109, 173, 174, 175, 187, 189
+    ];
+    for (var i = 0; i < customKeys.length; i++) {
+      try {
+        pluginAPI.registKey(customKeys[i]);
+      } catch (e2) {}
     }
   },
 
@@ -824,10 +838,26 @@ var App = {
 
   installKeyHandler: function () {
     var self = this;
+    var lastHandledTime = 0;
+    var lastHandledKey = '';
+
     var keyListener = function (event) {
       event = event || window.event;
-      var code = event.keyCode || event.which;
-      var key = self.keyName(code);
+      var code = event.keyCode || event.which || event.charCode || 0;
+      var key = self.keyName(code, event);
+
+      if (!key) return true;
+
+      var now = new Date().getTime();
+      var isArrow = (key === 'left' || key === 'right' || key === 'up' || key === 'down');
+      var debounceMs = isArrow ? 160 : 70;
+
+      if (now - lastHandledTime < debounceMs && key === lastHandledKey) {
+        self.prevent(event);
+        return false;
+      }
+      lastHandledTime = now;
+      lastHandledKey = key;
 
       if (self.isGuideOpen()) {
         if (key === 'return' || key === 'back' || key === 'yellow') {
@@ -845,8 +875,13 @@ var App = {
       }
     };
 
-    window.onkeydown = keyListener;
-    document.onkeydown = keyListener;
+    if (window.addEventListener) {
+      // Use capture mode on window: catches key before target elements or browser spatial navigation
+      window.addEventListener('keydown', keyListener, true);
+      window.addEventListener('keypress', keyListener, true);
+    } else {
+      document.onkeydown = keyListener;
+    }
   },
 
   handlePlayerKey: function (key, event) {
@@ -1211,23 +1246,73 @@ var App = {
     this.setStatus('Channel not found: ' + targetNumber);
   },
 
-  keyName: function (code) {
-    // Keyboard Enter (13) and Space (32)
-    if (code === 13 || code === 32) return 'enter';
+  keyName: function (code, event) {
+    var keyChar = '';
+    if (event && event.key) {
+      keyChar = String(event.key).toLowerCase();
+    }
+    var isKeyPress = event && event.type === 'keypress';
 
-    // Keyboard Backspace (8), 'Q' (81), 'X' (88) -> Return / Back
-    // Note: Esc (27) is omitted here to avoid triggering TV OS full exit
-    if (code === 8 || code === 81 || code === 88) return 'return';
+    // 1. Enter and Space
+    if (code === 13 || code === 32 || keyChar === 'enter' || keyChar === ' ') {
+      return 'enter';
+    }
 
-    // Keyboard Volume controls: media keys (174, 175, 173) and +/- (187, 189, 107, 109) and 'M' (77)
-    if (code === 175 || code === 107 || code === 187) return 'vol_up';
-    if (code === 174 || code === 109 || code === 189) return 'vol_down';
-    if (code === 173 || code === 77) return 'mute';
+    // 2. Return / Back / Exit:
+    // Backspace (8), 'Q' (81 on keydown, 113 on keypress), 'X' (88 on keydown, 120 on keypress)
+    // Note: Esc (27) is omitted to avoid TV OS full exit
+    if (keyChar === 'q' || keyChar === 'x' || keyChar === 'backspace') {
+      return 'return';
+    }
+    if (code === 8 || code === 81) return 'return';
+    if (isKeyPress && (code === 113 || code === 120)) return 'return';
 
-    // Keyboard Hotkeys: 'A' (65) -> All channels, 'F' (70) -> Favorites
-    if (code === 65) return 'all_filter';
-    if (code === 70) return 'fav_filter';
+    // 3. Red button / 'R' / F1 (Favorite toggle)
+    if (keyChar === 'r' || keyChar === 'f1') return 'red';
+    if (code === 82 || (!isKeyPress && code === 112) || (isKeyPress && code === 114)) return 'red';
 
+    // 4. Green button / 'G' / F2 (Category cycle)
+    if (keyChar === 'g' || keyChar === 'f2') return 'green';
+    if (code === 71 || (!isKeyPress && code === 113) || (isKeyPress && code === 103)) return 'green';
+
+    // 5. Yellow button / 'Y' / 'Z' (QWERTZ Hungarian swap) / F3 (EPG Guide)
+    if (keyChar === 'y' || keyChar === 'z' || keyChar === 'f3') return 'yellow';
+    if (code === 89 || code === 90 || (!isKeyPress && code === 114) || (isKeyPress && (code === 121 || code === 122))) return 'yellow';
+
+    // 6. Blue button / 'B' / F4 (Refresh channels / Aspect ratio)
+    if (keyChar === 'b' || keyChar === 'f4') return 'blue';
+    if (code === 66 || (!isKeyPress && code === 115) || (isKeyPress && code === 98)) return 'blue';
+
+    // 7. 'A' -> All channels
+    if (keyChar === 'a' || code === 65 || (isKeyPress && code === 97)) return 'all_filter';
+
+    // 8. 'F' -> Favorites tab
+    if (keyChar === 'f' || code === 70 || (isKeyPress && code === 102)) return 'fav_filter';
+
+    // 9. 'I' -> Info
+    if (keyChar === 'i' || code === 73 || (isKeyPress && code === 105)) return 'info';
+
+    // 10. Volume controls:
+    // Media keys (174, 175, 173), +/-, 'M', and F8 (Mute), F9 (Vol-), F10 (Vol+)
+    if (keyChar === '+' || keyChar === 'f10' || code === 175 || code === 107 || code === 187 || (!isKeyPress && code === 121)) {
+      return 'vol_up';
+    }
+    if (keyChar === '-' || keyChar === 'f9' || code === 174 || code === 109 || code === 189 || (!isKeyPress && code === 120)) {
+      return 'vol_down';
+    }
+    if (keyChar === 'm' || keyChar === 'f8' || code === 173 || code === 77 || (!isKeyPress && code === 119) || (isKeyPress && code === 109)) {
+      return 'mute';
+    }
+
+    // 11. Channel Up / Down via F11/F12 or PageUp/PageDown
+    if (keyChar === 'pageup' || keyChar === 'f12' || code === 33 || (!isKeyPress && code === 123)) {
+      return 'ch_up';
+    }
+    if (keyChar === 'pagedown' || keyChar === 'f11' || code === 34 || (!isKeyPress && code === 122)) {
+      return 'ch_down';
+    }
+
+    // 12. TV Remote mappings from tvKey
     if (tvKey) {
       if (code === tvKey.KEY_LEFT) return 'left';
       if (code === tvKey.KEY_RIGHT) return 'right';
@@ -1261,21 +1346,20 @@ var App = {
       if (code === tvKey.KEY_9) return '9';
     }
 
-    if (code === 37) return 'left';
-    if (code === 38) return 'up';
-    if (code === 39) return 'right';
-    if (code === 40) return 'down';
-    if (code === 13) return 'enter';
-    if (code === 8) return 'return';
-    if (code === 33) return 'ch_up';
-    if (code === 34) return 'ch_down';
-    if (code === 73) return 'info';       // 'I'
-    if (code === 82) return 'red';        // 'R'
-    if (code === 71) return 'green';      // 'G'
-    if (code === 89) return 'yellow';     // 'Y'
-    if (code === 66) return 'blue';       // 'B'
+    // 13. Directional arrows
+    if (code === 37 || keyChar === 'arrowleft') return 'left';
+    if (code === 38 || keyChar === 'arrowup') return 'up';
+    if (code === 39 || keyChar === 'arrowright') return 'right';
+    if (code === 40 || keyChar === 'arrowdown') return 'down';
+
+    // 14. Standard Return / Back on PC or TV emulator
+    if (code === 8 || code === 88) return 'return';
+
+    // 15. Number keys (0-9)
     if (code >= 48 && code <= 57) return String(code - 48);
     if (code >= 96 && code <= 105) return String(code - 96);
+    if (keyChar >= '0' && keyChar <= '9') return keyChar;
+
     return '';
   },
 
@@ -1784,8 +1868,11 @@ var App = {
   mouseFocus: function (index) { this.setFocus(index); },
 
   prevent: function (event) {
-    if (event && event.preventDefault) event.preventDefault();
-    if (event) event.returnValue = false;
+    if (!event) return;
+    if (event.preventDefault) event.preventDefault();
+    if (event.stopPropagation) event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    event.returnValue = false;
   },
 
   formatTime: function (date) {

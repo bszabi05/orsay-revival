@@ -21,10 +21,10 @@ The main screen features two primary browsing modes:
 | **Return to Channels from Top Bar** | `Down` arrow | `Down` arrow | Click channel area |
 | **Switch to 'All' Tab** | Focus `All` + `ENTER` | **`A`** key or focus `All` + `Enter` | Click `All` button |
 | **Switch to 'Favorites' Tab** | Focus `Favorites` + `ENTER` | **`F`** key or focus `Favorites` + `Enter` | Click `Favorites` button |
-| **Toggle Favorite (Add / Remove)** | `RED` button | **`R`** key | Click &#9733; star button |
-| **Cycle Channel Category** | `GREEN` button | **`G`** key | Select from dropdown |
-| **Open Daily EPG Guide** | `YELLOW` button | **`Y`** key | Right-click channel card |
-| **Refresh Channel List** | `BLUE` button | **`B`** key | Click `Refresh` button |
+| **Toggle Favorite (Add / Remove)** | `RED` button | **`R`** or **`F1`** key | Click &#9733; star button |
+| **Cycle Channel Category** | `GREEN` button | **`G`** or **`F2`** key | Select from dropdown |
+| **Open Daily EPG Guide** | `YELLOW` button | **`Y`**, **`Z`** (QWERTZ), or **`F3`** key | Right-click channel card |
+| **Refresh Channel List** | `BLUE` button | **`B`** or **`F4`** key | Click `Refresh` button |
 | **Pagination (Grid View)** | `CH UP` / `CH DOWN` (or PageUp/Down) | `Page Up` / `Page Down` | Click Previous / Next page buttons |
 | **Quick Channel Tune (Direct Number)** | Number keys `0` - `9` | Number keys `0` - `9` (Row or Numpad) | - |
 | **Hardware TV Volume** | `VOL +` / `VOL -` / `MUTE` | Media Volume keys, `+` / `-` / `M` | - |
@@ -47,9 +47,9 @@ When a channel is launched, the video plays full-screen using MPEG-TS hardware d
 | **Previous Channel** | `Down` arrow or `CH DOWN` | `Down` arrow | - |
 | **Toggle OSD Info Banner (Now/Next)** | `ENTER` or `INFO` | `Enter`, `Space`, or **`I`** key | Move mouse over player |
 | **Pause / Resume** | `PLAY` / `PAUSE` | `P` or Media Play/Pause key | - |
-| **Cycle Aspect Ratio (16:9, 4:3, Fill)** | `BLUE` button | **`B`** key | Click Aspect button in OSD |
-| **Toggle Favorite While Watching** | `RED` button | **`R`** key | - |
-| **Open EPG Guide for Current Channel** | `YELLOW` button | **`Y`** key | Click EPG button in OSD |
+| **Cycle Aspect Ratio (16:9, 4:3, Fill)** | `BLUE` button | **`B`** or **`F4`** key | Click Aspect button in OSD |
+| **Toggle Favorite While Watching** | `RED` button | **`R`** or **`F1`** key | - |
+| **Open EPG Guide for Current Channel** | `YELLOW` button | **`Y`**, **`Z`** (QWERTZ), or **`F3`** key | Click EPG button in OSD |
 | **Hardware TV Volume Up** | `VOL +` | `Right` arrow, Media Vol+, or `+` | Vertical drag on right half of screen |
 | **Hardware TV Volume Down** | `VOL -` | `Left` arrow, Media Vol-, or `-` | Vertical drag on right half of screen |
 | **Toggle TV Mute** | `MUTE` | Media Mute key or **`M`** key | - |
