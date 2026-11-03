@@ -65,10 +65,10 @@ var Player = {
     if (!this.object) return;
 
     this.object.addEventListener('loadstart', function () {
-      self.setStatus('Csatlakozás...', true);
+      self.setStatus('Connecting...', true);
     });
     this.object.addEventListener('waiting', function () {
-      self.setStatus('Pufferelés...', true);
+      self.setStatus('Buffering...', true);
     });
     this.object.addEventListener('playing', function () {
       self.playing = true;
@@ -77,7 +77,7 @@ var Player = {
     this.object.addEventListener('error', function () {
       self.playing = false;
       var errCode = self.object.error ? self.object.error.code : 'Unknown';
-      self.setStatus('Hiba (Kód: ' + errCode + ')', true);
+      self.setStatus('Error (Code: ' + errCode + ')', true);
       if (errCode === 4) {
         setTimeout(function () {
           if (App && typeof App.nextChannel === 'function') {
@@ -109,14 +109,14 @@ var Player = {
     this.currentUrl = AppConfig.proxyUrl + b64url;
 
     this.setArea(this.aspect);
-    this.setStatus('Csatlakozás...', true);
+    this.setStatus('Connecting...', true);
 
     if (this.object) {
       this.object.src = this.currentUrl;
       try {
         this.object.play();
       } catch (playError) {
-        this.setStatus('Hiba: ' + playError, true);
+        this.setStatus('Error: ' + playError, true);
       }
     }
     this.setVolume(this.volume);
@@ -138,7 +138,7 @@ var Player = {
     if (this.playing) {
       try { this.object.pause(); } catch (e) {}
       this.playing = false;
-      this.setStatus('Szüneteltetve', true);
+      this.setStatus('Paused', true);
     } else {
       try { this.object.play(); } catch (e) {}
       this.playing = true;
@@ -165,9 +165,9 @@ var Player = {
   nextAspect: function () {
     this.aspect = (this.aspect + 1) % this.aspects.length;
     this.setArea(this.aspect);
-    var aspectNames = ['16:9 (Fit)', '4:3 (Center)', 'Kitöltés'];
+    var aspectNames = ['16:9 (Fit)', '4:3 (Center)', 'Fill'];
     if (typeof App !== 'undefined') {
-      App.setStatus('Képarány: ' + aspectNames[this.aspect]);
+      App.setStatus('Aspect: ' + aspectNames[this.aspect]);
     }
   },
 
@@ -294,22 +294,22 @@ var App = {
       var self = this;
       this.sleepTimer = setTimeout(function () {
         self.closePlayer();
-        self.setStatus('Elalvási időzítő leállította a lejátszást.');
+        self.setStatus('Sleep timer stopped playback.');
       }, this.sleepMinutes * 60 * 1000);
-      this.setStatus('Elalvási időzítő: ' + this.sleepMinutes + ' perc');
+      this.setStatus('Sleep timer: ' + this.sleepMinutes + ' minutes');
     } else {
-      this.setStatus('Elalvási időzítő kikapcsolva');
+      this.setStatus('Sleep timer off');
     }
   },
 
   refreshChannels: function () {
     var xhr = new XMLHttpRequest();
     var self = this;
-    this.setStatus('Csatornák betöltése...');
+    this.setStatus('Loading channels...');
     try {
       xhr.open('GET', 'channels.json?ts=' + new Date().getTime(), true);
     } catch (openError) {
-      this.setStatus('Nem sikerült megnyitni a csatornakérést.');
+      this.setStatus('Could not open channel request.');
       return;
     }
     xhr.onreadystatechange = function () {
@@ -319,18 +319,18 @@ var App = {
           self.channels = self.flattenChannels(JSON.parse(xhr.responseText));
           self.buildFilters();
           self.render();
-          self.setStatus(self.channels.length + ' csatorna betöltve');
+          self.setStatus(self.channels.length + ' channels loaded');
         } catch (error) {
-          self.setStatus('Érvénytelen channels.json.');
+          self.setStatus('Invalid channels.json.');
         }
       } else {
-        self.setStatus('Csatorna lekérési hiba: ' + xhr.status);
+        self.setStatus('Channel request failed: ' + xhr.status);
       }
     };
     try {
       xhr.send(null);
     } catch (sendError) {
-      this.setStatus('Hiba a kérés küldésekor.');
+      this.setStatus('Channel request failed to send.');
     }
   },
 
@@ -363,14 +363,14 @@ var App = {
       categories[this.channels[i].categoryId] = this.channels[i].categoryName;
       languages[this.channels[i].language || 'unknown'] = true;
     }
-    categorySelect.innerHTML = '<option value="all">Minden kategória</option>';
+    categorySelect.innerHTML = '<option value="all">All categories</option>';
     for (var categoryId in categories) {
       if (categories.hasOwnProperty(categoryId)) {
         categorySelect.innerHTML += '<option value="' + this.escape(categoryId) + '">' +
           this.escape(categories[categoryId]) + '</option>';
       }
     }
-    languageSelect.innerHTML = '<option value="all">Minden nyelv</option>';
+    languageSelect.innerHTML = '<option value="all">All languages</option>';
     for (var language in languages) {
       if (languages.hasOwnProperty(language)) {
         languageSelect.innerHTML += '<option value="' + this.escape(language) + '">' +
@@ -406,7 +406,7 @@ var App = {
     var nextVal = options[nextIdx].value;
     categorySelect.selectedIndex = nextIdx;
     this.setCategory(nextVal);
-    this.setStatus('Kategória: ' + options[nextIdx].text);
+    this.setStatus('Category: ' + options[nextIdx].text);
   },
 
   setLanguage: function (value) {
@@ -446,8 +446,8 @@ var App = {
     }
     if (!html) {
       html = this.category === 'favorites' && !this.favorites.length ?
-        '<div class="empty">Nincsenek kedvencek. Válassz kategóriát a Zöld gombbal!</div>' :
-        '<div class="empty">Nincs a szűrőnek megfelelő csatorna.</div>';
+        '<div class="empty">No favorites yet. Press Green to browse categories!</div>' :
+        '<div class="empty">No channels match this filter.</div>';
     }
     grid.innerHTML = html;
     this.renderPagination();
@@ -477,7 +477,7 @@ var App = {
       favoriteText + '</button>' + logo +
       '<div class="channelName">' + this.escape(channel.name) + '</div>' +
       '<div class="channelMeta">' + this.escape(channel.categoryName || '') + '</div>' +
-      '<div class="program">' + (program ? this.escape(program.title) : 'Nincs EPG adat') + '</div>' +
+      '<div class="program">' + (program ? this.escape(program.title) : 'No EPG data') + '</div>' +
       '<div class="progress"><span style="width:' + progress + '%;"></span></div></div>';
   },
 
@@ -487,7 +487,7 @@ var App = {
     var label = document.getElementById('pageLabel');
     if (previous) previous.disabled = this.currentPage <= 1;
     if (next) next.disabled = this.currentPage >= this.totalPages;
-    if (label) label.innerHTML = 'Oldal ' + this.currentPage + ' / ' + this.totalPages;
+    if (label) label.innerHTML = 'Page ' + this.currentPage + ' / ' + this.totalPages;
   },
 
   previousPage: function () {
@@ -637,7 +637,7 @@ var App = {
       if (this.currentChannel) {
         this.toggleFavorite(this.currentChannel.id);
         var isFav = this.isFavorite(this.currentChannel.id);
-        this.setStatus(isFav ? 'Hozzáadva a kedvencekhez' : 'Eltávolítva a kedvencekből');
+        this.setStatus(isFav ? 'Added to favorites' : 'Removed from favorites');
       }
       this.prevent(event);
       return false;
@@ -846,7 +846,7 @@ var App = {
         return;
       }
     }
-    this.setStatus('Nincs csatorna ezzel a számmal: ' + targetNumber);
+    this.setStatus('Channel not found: ' + targetNumber);
   },
 
   keyName: function (code) {
@@ -943,7 +943,7 @@ var App = {
       }
       if (progBar) progBar.style.width = this.progress(currentProg) + '%';
     } else {
-      if (progEl) progEl.innerHTML = 'Nincs műsorinformáció';
+      if (progEl) progEl.innerHTML = 'No program info';
       if (progTimeEl) progTimeEl.innerHTML = '';
       if (progBar) progBar.style.width = '0%';
     }
@@ -952,7 +952,7 @@ var App = {
       if (nextProg) {
         nextProgEl.innerHTML = this.formatTime(nextProg.start) + ' ' + this.escape(nextProg.title);
       } else {
-        nextProgEl.innerHTML = 'Nincs adat';
+        nextProgEl.innerHTML = 'No data';
       }
     }
   },
@@ -1121,7 +1121,7 @@ var App = {
     var html = '';
     var i;
     if (!list.length) {
-      html = '<p>Ehhez a csatornához nincs elérhető műsorinformáció.</p>';
+      html = '<p>No guide data available for this channel.</p>';
     }
     for (i = 0; i < list.length; i++) {
       html += '<div class="guideEntry' + (this.isLive(list[i]) ? ' live' : '') + '">' +
@@ -1132,7 +1132,7 @@ var App = {
     var guideTitle = document.getElementById('guideTitle');
     if (guideTitle) {
       guideTitle.innerHTML = channel ?
-        this.escape(channel.name) + ' - Műsorújság' : 'Műsorújság';
+        this.escape(channel.name) + ' - Daily guide' : 'Daily guide';
     }
     var guideModal = document.getElementById('guideModal');
     if (guideModal) guideModal.className = 'modal';
@@ -1192,7 +1192,7 @@ var App = {
       }
     }
     var now = new Date().getTime();
-    var maxHorizon = now + (24 * 60 * 60 * 1000); // Legfeljebb 24 óra előre a memória kímélése végett
+    var maxHorizon = now + (24 * 60 * 60 * 1000); // Max 24 hours ahead to save memory
 
     for (i = 0; i < entries.length; i++) {
       var node = entries[i];
@@ -1200,7 +1200,7 @@ var App = {
       var start = this.parseXmltvDate(node.getAttribute('start'));
       var end = this.parseXmltvDate(node.getAttribute('stop'));
 
-      // Túl régi vagy túl távoli elemek kihagyása a RAM kímélése érdekében
+      // Discard entries that are too old or too far in the future
       if (end.getTime() < now - (2 * 60 * 60 * 1000) || start.getTime() > maxHorizon) {
         continue;
       }
@@ -1214,7 +1214,7 @@ var App = {
         end: end
       };
       if (!this.epg[channelId]) this.epg[channelId] = [];
-      // Legfeljebb 12 műsor csatornánként (megelőzi az OOM összeomlást)
+      // Keep at most 12 programs per channel to prevent OOM
       if (this.epg[channelId].length < 12) {
         this.epg[channelId].push(item);
       }
