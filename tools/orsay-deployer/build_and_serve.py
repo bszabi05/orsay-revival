@@ -87,6 +87,7 @@ def build_archive(archive_path: Path) -> None:
                     source_path.name == WIDGETLIST_NAME
                     or source_path.name.endswith(".json.example")
                     or source_path.name.endswith(".js.example")
+                    or source_path.suffix.lower() == ".md"
                 ):
                     continue
                 archive_name = source_path.relative_to(WIDGET_DIR).as_posix()

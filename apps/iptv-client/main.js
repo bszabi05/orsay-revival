@@ -32,6 +32,57 @@ try {
   }
 } catch (ignorePluginError) {}
 
+var Audio = {
+  plugin: null,
+  init: function () {
+    try {
+      this.plugin = document.getElementById('pluginObjectAudio');
+    } catch (e) {
+      this.plugin = null;
+    }
+  },
+  volumeUp: function () {
+    if (this.plugin && this.plugin.SetVolumeWithKey) {
+      try {
+        this.plugin.SetVolumeWithKey(0);
+        var vol = this.getVolume();
+        App.updateVolumeUi(vol);
+        return;
+      } catch (e) {}
+    }
+    Player.changeVolume(5);
+  },
+  volumeDown: function () {
+    if (this.plugin && this.plugin.SetVolumeWithKey) {
+      try {
+        this.plugin.SetVolumeWithKey(1);
+        var vol = this.getVolume();
+        App.updateVolumeUi(vol);
+        return;
+      } catch (e) {}
+    }
+    Player.changeVolume(-5);
+  },
+  getVolume: function () {
+    if (this.plugin && this.plugin.GetVolume) {
+      try {
+        return this.plugin.GetVolume();
+      } catch (e) {}
+    }
+    return Player.getVolume();
+  },
+  toggleMute: function () {
+    if (this.plugin && this.plugin.SetSystemMute && this.plugin.GetSystemMute) {
+      try {
+        var current = this.plugin.GetSystemMute();
+        this.plugin.SetSystemMute(!current);
+        App.setStatus(!current ? 'TV Muted' : 'TV Unmuted');
+        return;
+      } catch (e) {}
+    }
+  }
+};
+
 var Player = {
   object: null,
   playing: false,
@@ -191,6 +242,7 @@ var App = {
   currentChannel: null,
 
   focusIndex: 0,
+  carouselIndex: 0,
   focusItems: [],
   focusZone: 'grid', // 'grid' | 'top'
   topFocusIndex: 0,
@@ -210,13 +262,77 @@ var App = {
 
   init: function () {
     Player.init();
+    Audio.init();
     this.loadState();
     this.bindMouseHandlers();
+    this.initFilterFocus();
     this.installKeyHandler();
     this.ready();
     this.refreshChannels();
     this.loadEpg();
     this.startClock();
+    try {
+      window.focus();
+      if (document.body && document.body.focus) {
+        document.body.focus();
+      }
+    } catch (focusError) {}
+  },
+
+  updateVolumeUi: function (vol) {
+    var volLabel = document.getElementById('volumeLabel');
+    if (volLabel) volLabel.innerHTML = vol + '%';
+    this.showPlayerControls();
+  },
+
+  initFilterFocus: function () {
+    var self = this;
+    var fav = document.getElementById('favoritesFilter');
+    var all = document.getElementById('allFilter');
+    var cat = document.getElementById('categoryFilter');
+    var lang = document.getElementById('languageFilter');
+    var ref = document.getElementById('refreshButton');
+
+    if (fav) {
+      fav.onfocus = function () {
+        if (self.focusZone === 'top' && self.topFocusIndex === 0) return;
+        self.focusZone = 'top';
+        self.topFocusIndex = 0;
+        self.updateTopFocus();
+      };
+    }
+    if (all) {
+      all.onfocus = function () {
+        if (self.focusZone === 'top' && self.topFocusIndex === 1) return;
+        self.focusZone = 'top';
+        self.topFocusIndex = 1;
+        self.updateTopFocus();
+      };
+    }
+    if (cat) {
+      cat.onfocus = function () {
+        if (self.focusZone === 'top' && self.topFocusIndex === 2) return;
+        self.focusZone = 'top';
+        self.topFocusIndex = 2;
+        self.updateTopFocus();
+      };
+    }
+    if (lang) {
+      lang.onfocus = function () {
+        if (self.focusZone === 'top' && self.topFocusIndex === 3) return;
+        self.focusZone = 'top';
+        self.topFocusIndex = 3;
+        self.updateTopFocus();
+      };
+    }
+    if (ref) {
+      ref.onfocus = function () {
+        if (self.focusZone === 'top' && self.topFocusIndex === 4) return;
+        self.focusZone = 'top';
+        self.topFocusIndex = 4;
+        self.updateTopFocus();
+      };
+    }
   },
 
   ready: function () {
@@ -227,23 +343,31 @@ var App = {
   },
 
   registerKeys: function () {
-    if (!pluginAPI || !pluginAPI.registKey || !tvKey) return;
-    var keys = [
-      tvKey.KEY_RED, tvKey.KEY_GREEN, tvKey.KEY_YELLOW, tvKey.KEY_BLUE,
-      tvKey.KEY_CH_UP, tvKey.KEY_CH_DOWN, tvKey.KEY_CHUP, tvKey.KEY_CHDOWN,
-      tvKey.KEY_PAGE_UP, tvKey.KEY_PAGE_DOWN,
-      tvKey.KEY_INFO, tvKey.KEY_INFOLINK,
-      tvKey.KEY_PLAY, tvKey.KEY_PAUSE, tvKey.KEY_STOP, tvKey.KEY_PLAY_PAUSE,
-      tvKey.KEY_0, tvKey.KEY_1, tvKey.KEY_2, tvKey.KEY_3, tvKey.KEY_4,
-      tvKey.KEY_5, tvKey.KEY_6, tvKey.KEY_7, tvKey.KEY_8, tvKey.KEY_9,
-      tvKey.KEY_VOL_UP, tvKey.KEY_VOL_DOWN, tvKey.KEY_MUTE
-    ];
-    for (var i = 0; i < keys.length; i++) {
-      try {
-        if (typeof keys[i] !== 'undefined') {
-          pluginAPI.registKey(keys[i]);
+    if (!pluginAPI || !pluginAPI.registKey) return;
+
+    if (tvKey) {
+      for (var k in tvKey) {
+        if (tvKey.hasOwnProperty(k) && typeof tvKey[k] === 'number') {
+          try {
+            pluginAPI.registKey(tvKey[k]);
+          } catch (e1) {}
         }
-      } catch (e) {}
+      }
+    }
+
+    var customKeys = [
+      65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77,
+      78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90,
+      97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
+      110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122,
+      123,
+      8, 13, 27, 32, 33, 34, 37, 38, 39, 40,
+      107, 109, 173, 174, 175, 187, 189
+    ];
+    for (var i = 0; i < customKeys.length; i++) {
+      try {
+        pluginAPI.registKey(customKeys[i]);
+      } catch (e2) {}
     }
   },
 
@@ -385,12 +509,23 @@ var App = {
     var allBtn = document.getElementById('allFilter');
     var favBtn = document.getElementById('favoritesFilter');
     var catSelect = document.getElementById('categoryFilter');
-    if (allBtn) allBtn.className = value === 'all' ? 'chip active' : 'chip';
-    if (favBtn) favBtn.className = value === 'favorites' ? 'chip active' : 'chip';
-    if (catSelect && value !== 'all' && value !== 'favorites') {
-      catSelect.value = value;
+    if (allBtn) {
+      allBtn.className = value === 'all' ? 'chip active' : 'chip';
+    }
+    if (favBtn) {
+      favBtn.className = value === 'favorites' ? 'chip active' : 'chip';
+    }
+    if (catSelect) {
+      if (value !== 'all' && value !== 'favorites') {
+        catSelect.value = value;
+      } else {
+        catSelect.selectedIndex = 0;
+      }
     }
     this.render();
+    if (this.focusZone === 'top') {
+      this.updateTopFocus();
+    }
   },
 
   nextCategory: function () {
@@ -429,8 +564,132 @@ var App = {
     return result;
   },
 
+  getFavoritesChannels: function () {
+    var result = [];
+    var i;
+    for (i = 0; i < this.channels.length; i++) {
+      if (this.isFavorite(this.channels[i].id)) {
+        result.push(this.channels[i]);
+      }
+    }
+    return result;
+  },
+
   render: function () {
+    if (this.category === 'favorites') {
+      this.renderCarousel();
+    } else {
+      this.renderGrid();
+    }
+  },
+
+  renderCarousel: function () {
     var grid = document.getElementById('channelGrid');
+    var pagination = document.getElementById('pagination');
+    var container = document.getElementById('carouselContainer');
+    if (grid) grid.className = 'hidden';
+    if (pagination) pagination.className = 'hidden';
+    if (!container) return;
+    container.className = '';
+
+    var list = this.getFavoritesChannels();
+    this.visibleChannels = list;
+
+    if (!list.length) {
+      container.innerHTML = '<div class="empty">No favorites yet. Switch to "All" to browse channels or press Red to favorite!</div>';
+      this.focusZone = 'top';
+      this.topFocusIndex = 0;
+      this.updateTopFocus();
+      return;
+    }
+
+    if (this.carouselIndex >= list.length) this.carouselIndex = list.length - 1;
+    if (this.carouselIndex < 0) this.carouselIndex = 0;
+
+    var html = '';
+    var i;
+    for (i = 0; i < list.length; i++) {
+      html += this.carouselCardHtml(list[i], i);
+    }
+    container.innerHTML = html;
+    this.updateCarouselClasses();
+  },
+
+  carouselCardHtml: function (channel, index) {
+    var program = this.currentProgram(channel);
+    var progress = program ? this.progress(program) : 0;
+    var logo = '';
+    if (channel.logoUrl) {
+      var encodedLogoUrl = encodeURIComponent(btoa(channel.logoUrl));
+      var proxiedLogoUrl = AppConfig.logoProxyUrl + '/logo?b64=' + encodedLogoUrl;
+      logo = '<img class="carouselLogo" data-src="' + this.escape(proxiedLogoUrl) + '" alt="" onerror="this.style.display=\'none\';" />';
+    }
+    var chNum = channel.channelNumber || (index + 1);
+
+    return '<div class="carouselCard" id="carousel-card-' + index + '" tabindex="0" data-index="' + index + '" data-id="' + this.escape(channel.id) + '">' +
+      '<span class="carouselNumber">#' + chNum + '</span>' +
+      '<button class="carouselFavBtn" data-id="' + this.escape(channel.id) + '">&#9733;</button>' +
+      logo +
+      '<div class="carouselName">' + this.escape(channel.name) + '</div>' +
+      '<div class="carouselMeta">' + this.escape(channel.categoryName || 'Favorite') + '</div>' +
+      '<div class="carouselProgram">' + (program ? this.escape(program.title) : 'No EPG data') + '</div>' +
+      '<div class="carouselProgress"><span style="width:' + progress + '%;"></span></div>' +
+      '<div class="carouselPrompt">PRESS ENTER TO WATCH</div>' +
+      '</div>';
+  },
+
+  updateCarouselClasses: function () {
+    var list = this.getFavoritesChannels();
+    if (!list.length) return;
+    var total = list.length;
+    var cur = this.carouselIndex;
+
+    var prev = (cur - 1 + total) % total;
+    var next = (cur + 1) % total;
+    var farPrev = (cur - 2 + total) % total;
+    var farNext = (cur + 2) % total;
+
+    var i;
+    for (i = 0; i < total; i++) {
+      var el = document.getElementById('carousel-card-' + i);
+      if (!el) continue;
+
+      var cls = 'carouselCard';
+      if (i === cur) {
+        cls += ' focused';
+      } else if (total > 1 && i === prev) {
+        cls += ' prev';
+      } else if (total > 2 && i === next) {
+        cls += ' next';
+      } else if (total > 3 && i === farPrev) {
+        cls += ' far-prev';
+      } else if (total > 4 && i === farNext) {
+        cls += ' far-next';
+      }
+      el.className = cls;
+
+      if (cls !== 'carouselCard') {
+        var img = el.getElementsByTagName('img')[0];
+        if (img && !img.src && img.getAttribute('data-src')) {
+          img.src = img.getAttribute('data-src');
+        }
+      }
+    }
+
+    var focusedEl = document.getElementById('carousel-card-' + cur);
+    if (focusedEl && this.focusZone === 'grid') {
+      try { if (focusedEl.focus) focusedEl.focus(); } catch (e) {}
+    }
+  },
+
+  renderGrid: function () {
+    var container = document.getElementById('carouselContainer');
+    if (container) container.className = 'hidden';
+    var grid = document.getElementById('channelGrid');
+    if (grid) grid.className = '';
+    var pagination = document.getElementById('pagination');
+    if (pagination) pagination.className = '';
+
     var list = this.filtered();
     var pageStart, pageEnd;
     var html = '';
@@ -445,9 +704,7 @@ var App = {
       html += this.cardHtml(list[i], i, list[i].channelNumber || (i + 1));
     }
     if (!html) {
-      html = this.category === 'favorites' && !this.favorites.length ?
-        '<div class="empty">No favorites yet. Press Green to browse categories!</div>' :
-        '<div class="empty">No channels match this filter.</div>';
+      html = '<div class="empty">No channels match this filter.</div>';
     }
     grid.innerHTML = html;
     this.renderPagination();
@@ -533,7 +790,7 @@ var App = {
 
   clearGridFocus: function () {
     for (var i = 0; i < this.focusItems.length; i++) {
-      this.focusItems[i].className = this.focusItems[i].className.replace(' focused', '');
+      this.focusItems[i].className = this.focusItems[i].className.replace(/\s*focused/g, '');
       try {
         if (this.focusItems[i].blur) {
           this.focusItems[i].blur();
@@ -546,10 +803,12 @@ var App = {
     for (var i = 0; i < this.topFocusIds.length; i++) {
       var el = document.getElementById(this.topFocusIds[i]);
       if (el) {
-        el.className = el.className.replace(' topFocused', '');
+        el.className = el.className.replace(/\s*topFocused/g, '');
         if (i === this.topFocusIndex) {
           el.className += ' topFocused';
-          if (el.focus) el.focus();
+          if (el.focus) {
+            try { el.focus(); } catch (e) {}
+          }
         }
       }
     }
@@ -559,8 +818,10 @@ var App = {
     for (var i = 0; i < this.topFocusIds.length; i++) {
       var el = document.getElementById(this.topFocusIds[i]);
       if (el) {
-        el.className = el.className.replace(' topFocused', '');
-        if (el.blur) el.blur();
+        el.className = el.className.replace(/\s*topFocused/g, '');
+        if (el.blur) {
+          try { el.blur(); } catch (e) {}
+        }
       }
     }
   },
@@ -577,10 +838,26 @@ var App = {
 
   installKeyHandler: function () {
     var self = this;
+    var lastHandledTime = 0;
+    var lastHandledKey = '';
+
     var keyListener = function (event) {
       event = event || window.event;
-      var code = event.keyCode || event.which;
-      var key = self.keyName(code);
+      var code = event.keyCode || event.which || event.charCode || 0;
+      var key = self.keyName(code, event);
+
+      if (!key) return true;
+
+      var now = new Date().getTime();
+      var isArrow = (key === 'left' || key === 'right' || key === 'up' || key === 'down');
+      var debounceMs = isArrow ? 160 : 70;
+
+      if (now - lastHandledTime < debounceMs && key === lastHandledKey) {
+        self.prevent(event);
+        return false;
+      }
+      lastHandledTime = now;
+      lastHandledKey = key;
 
       if (self.isGuideOpen()) {
         if (key === 'return' || key === 'back' || key === 'yellow') {
@@ -598,8 +875,13 @@ var App = {
       }
     };
 
-    window.onkeydown = keyListener;
-    document.onkeydown = keyListener;
+    if (window.addEventListener) {
+      // Use capture mode on window: catches key before target elements or browser spatial navigation
+      window.addEventListener('keydown', keyListener, true);
+      window.addEventListener('keypress', keyListener, true);
+    } else {
+      document.onkeydown = keyListener;
+    }
   },
 
   handlePlayerKey: function (key, event) {
@@ -613,15 +895,18 @@ var App = {
       this.prevent(event);
       return false;
     }
-    if (key === 'left') {
-      this.changeVolume(-5);
-      this.showPlayerControls();
+    if (key === 'vol_down' || key === 'left') {
+      Audio.volumeDown();
       this.prevent(event);
       return false;
     }
-    if (key === 'right') {
-      this.changeVolume(5);
-      this.showPlayerControls();
+    if (key === 'vol_up' || key === 'right') {
+      Audio.volumeUp();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'mute') {
+      Audio.toggleMute();
       this.prevent(event);
       return false;
     }
@@ -642,6 +927,9 @@ var App = {
       return false;
     }
     if (key === 'stop' || key === 'return' || key === 'back') {
+      if (widgetAPI && widgetAPI.blockNavigation) {
+        try { widgetAPI.blockNavigation(event); } catch (e) {}
+      }
       this.closePlayer();
       this.prevent(event);
       return false;
@@ -680,11 +968,53 @@ var App = {
       this.prevent(event);
       return false;
     }
+    if (key === 'all_filter') {
+      this.setCategory('all');
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'fav_filter') {
+      this.setCategory('favorites');
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'vol_up') {
+      Audio.volumeUp();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'vol_down') {
+      Audio.volumeDown();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'mute') {
+      Audio.toggleMute();
+      this.prevent(event);
+      return false;
+    }
     if (key === 'enter') {
+      var activeEl = document.activeElement;
+      if (activeEl && (activeEl.id === 'allFilter' || activeEl.id === 'favoritesFilter' || activeEl.id === 'refreshButton')) {
+        if (activeEl.id === 'allFilter') {
+          this.setCategory('all');
+        } else if (activeEl.id === 'favoritesFilter') {
+          this.setCategory('favorites');
+        } else if (activeEl.id === 'refreshButton') {
+          this.refreshChannels();
+        }
+        this.prevent(event);
+        return false;
+      }
+
       if (this.focusZone === 'top') {
         this.activateTopFocus();
+      } else if (this.category === 'favorites') {
+        var favList = this.getFavoritesChannels();
+        if (favList.length && favList[this.carouselIndex]) {
+          this.openChannelByChannel(favList[this.carouselIndex]);
+        }
       } else {
-        var activeEl = document.activeElement;
         var targetCard = this.findChannelTarget(activeEl);
         if (targetCard && targetCard.className.indexOf('favoriteButton') !== -1) {
           this.toggleFavorite(targetCard.getAttribute('data-id'));
@@ -702,9 +1032,16 @@ var App = {
     }
     if (key === 'red') {
       if (this.focusZone === 'grid') {
-        var pStart = (this.currentPage - 1) * this.pageSize;
-        var aIdx = pStart + this.focusIndex;
-        this.toggleFavoriteByIndex(aIdx);
+        if (this.category === 'favorites') {
+          var curFavs = this.getFavoritesChannels();
+          if (curFavs.length && curFavs[this.carouselIndex]) {
+            this.toggleFavorite(curFavs[this.carouselIndex].id);
+          }
+        } else {
+          var pStart = (this.currentPage - 1) * this.pageSize;
+          var aIdx = pStart + this.focusIndex;
+          this.toggleFavoriteByIndex(aIdx);
+        }
       } else {
         this.setCategory(this.category === 'favorites' ? 'all' : 'favorites');
       }
@@ -717,9 +1054,17 @@ var App = {
       return false;
     }
     if (key === 'yellow') {
-      var pgStart = (this.currentPage - 1) * this.pageSize;
-      var curIdx = pgStart + this.focusIndex;
-      this.showGuideForIndex(curIdx);
+      if (this.category === 'favorites') {
+        var curFavsGuide = this.getFavoritesChannels();
+        if (curFavsGuide.length && curFavsGuide[this.carouselIndex]) {
+          this.currentChannel = curFavsGuide[this.carouselIndex];
+          this.showGuide();
+        }
+      } else {
+        var pgStart = (this.currentPage - 1) * this.pageSize;
+        var curIdx = pgStart + this.focusIndex;
+        this.showGuideForIndex(curIdx);
+      }
       this.prevent(event);
       return false;
     }
@@ -768,7 +1113,37 @@ var App = {
       } else if (key === 'down') {
         this.focusZone = 'grid';
         this.clearTopFocus();
-        this.setFocus(this.focusIndex);
+        if (this.category === 'favorites') {
+          this.updateCarouselClasses();
+        } else {
+          if (this.focusIndex >= this.focusItems.length) this.focusIndex = 0;
+          this.setFocus(this.focusIndex);
+        }
+      }
+      return;
+    }
+
+    if (this.category === 'favorites') {
+      var favs = this.getFavoritesChannels();
+      if (!favs.length) {
+        if (key === 'up') {
+          this.focusZone = 'top';
+          this.topFocusIndex = 0;
+          this.updateTopFocus();
+        }
+        return;
+      }
+      if (key === 'left') {
+        this.carouselIndex = (this.carouselIndex - 1 + favs.length) % favs.length;
+        this.updateCarouselClasses();
+      } else if (key === 'right') {
+        this.carouselIndex = (this.carouselIndex + 1) % favs.length;
+        this.updateCarouselClasses();
+      } else if (key === 'up') {
+        this.focusZone = 'top';
+        this.topFocusIndex = 0;
+        this.updateTopFocus();
+        this.updateCarouselClasses();
       }
       return;
     }
@@ -871,10 +1246,73 @@ var App = {
     this.setStatus('Channel not found: ' + targetNumber);
   },
 
-  keyName: function (code) {
-    // Keyboard Enter (13) and Space (32)
-    if (code === 13 || code === 32) return 'enter';
+  keyName: function (code, event) {
+    var keyChar = '';
+    if (event && event.key) {
+      keyChar = String(event.key).toLowerCase();
+    }
+    var isKeyPress = event && event.type === 'keypress';
 
+    // 1. Enter and Space
+    if (code === 13 || code === 32 || keyChar === 'enter' || keyChar === ' ') {
+      return 'enter';
+    }
+
+    // 2. Return / Back / Exit:
+    // Backspace (8), 'Q' (81 on keydown, 113 on keypress), 'X' (88 on keydown, 120 on keypress)
+    // Note: Esc (27) is omitted to avoid TV OS full exit
+    if (keyChar === 'q' || keyChar === 'x' || keyChar === 'backspace') {
+      return 'return';
+    }
+    if (code === 8 || code === 81) return 'return';
+    if (isKeyPress && (code === 113 || code === 120)) return 'return';
+
+    // 3. Red button / 'R' / F1 (Favorite toggle)
+    if (keyChar === 'r' || keyChar === 'f1') return 'red';
+    if (code === 82 || (!isKeyPress && code === 112) || (isKeyPress && code === 114)) return 'red';
+
+    // 4. Green button / 'G' / F2 (Category cycle)
+    if (keyChar === 'g' || keyChar === 'f2') return 'green';
+    if (code === 71 || (!isKeyPress && code === 113) || (isKeyPress && code === 103)) return 'green';
+
+    // 5. Yellow button / 'Y' / 'Z' (QWERTZ Hungarian swap) / F3 (EPG Guide)
+    if (keyChar === 'y' || keyChar === 'z' || keyChar === 'f3') return 'yellow';
+    if (code === 89 || code === 90 || (!isKeyPress && code === 114) || (isKeyPress && (code === 121 || code === 122))) return 'yellow';
+
+    // 6. Blue button / 'B' / F4 (Refresh channels / Aspect ratio)
+    if (keyChar === 'b' || keyChar === 'f4') return 'blue';
+    if (code === 66 || (!isKeyPress && code === 115) || (isKeyPress && code === 98)) return 'blue';
+
+    // 7. 'A' -> All channels
+    if (keyChar === 'a' || code === 65 || (isKeyPress && code === 97)) return 'all_filter';
+
+    // 8. 'F' -> Favorites tab
+    if (keyChar === 'f' || code === 70 || (isKeyPress && code === 102)) return 'fav_filter';
+
+    // 9. 'I' -> Info
+    if (keyChar === 'i' || code === 73 || (isKeyPress && code === 105)) return 'info';
+
+    // 10. Volume controls:
+    // Media keys (174, 175, 173), +/-, 'M', and F8 (Mute), F9 (Vol-), F10 (Vol+)
+    if (keyChar === '+' || keyChar === 'f10' || code === 175 || code === 107 || code === 187 || (!isKeyPress && code === 121)) {
+      return 'vol_up';
+    }
+    if (keyChar === '-' || keyChar === 'f9' || code === 174 || code === 109 || code === 189 || (!isKeyPress && code === 120)) {
+      return 'vol_down';
+    }
+    if (keyChar === 'm' || keyChar === 'f8' || code === 173 || code === 77 || (!isKeyPress && code === 119) || (isKeyPress && code === 109)) {
+      return 'mute';
+    }
+
+    // 11. Channel Up / Down via F11/F12 or PageUp/PageDown
+    if (keyChar === 'pageup' || keyChar === 'f12' || code === 33 || (!isKeyPress && code === 123)) {
+      return 'ch_up';
+    }
+    if (keyChar === 'pagedown' || keyChar === 'f11' || code === 34 || (!isKeyPress && code === 122)) {
+      return 'ch_down';
+    }
+
+    // 12. TV Remote mappings from tvKey
     if (tvKey) {
       if (code === tvKey.KEY_LEFT) return 'left';
       if (code === tvKey.KEY_RIGHT) return 'right';
@@ -882,6 +1320,9 @@ var App = {
       if (code === tvKey.KEY_DOWN) return 'down';
       if (code === tvKey.KEY_ENTER) return 'enter';
       if (code === tvKey.KEY_RETURN) return 'return';
+      if (code === tvKey.KEY_VOL_UP || code === tvKey.KEY_VOLUP) return 'vol_up';
+      if (code === tvKey.KEY_VOL_DOWN || code === tvKey.KEY_VOLDOWN) return 'vol_down';
+      if (code === tvKey.KEY_MUTE) return 'mute';
       if (code === tvKey.KEY_RED) return 'red';
       if (code === tvKey.KEY_GREEN) return 'green';
       if (code === tvKey.KEY_YELLOW) return 'yellow';
@@ -905,26 +1346,24 @@ var App = {
       if (code === tvKey.KEY_9) return '9';
     }
 
-    if (code === 37) return 'left';
-    if (code === 38) return 'up';
-    if (code === 39) return 'right';
-    if (code === 40) return 'down';
-    if (code === 13) return 'enter';
-    if (code === 8 || code === 27) return 'return';
-    if (code === 33) return 'ch_up';
-    if (code === 34) return 'ch_down';
-    if (code === 73) return 'info';       // 'I'
-    if (code === 82) return 'red';        // 'R'
-    if (code === 71) return 'green';      // 'G'
-    if (code === 89) return 'yellow';     // 'Y'
-    if (code === 66) return 'blue';       // 'B'
+    // 13. Directional arrows
+    if (code === 37 || keyChar === 'arrowleft') return 'left';
+    if (code === 38 || keyChar === 'arrowup') return 'up';
+    if (code === 39 || keyChar === 'arrowright') return 'right';
+    if (code === 40 || keyChar === 'arrowdown') return 'down';
+
+    // 14. Standard Return / Back on PC or TV emulator
+    if (code === 8 || code === 88) return 'return';
+
+    // 15. Number keys (0-9)
     if (code >= 48 && code <= 57) return String(code - 48);
     if (code >= 96 && code <= 105) return String(code - 96);
+    if (keyChar >= '0' && keyChar <= '9') return keyChar;
+
     return '';
   },
 
-  openChannel: function (index) {
-    var channel = this.visibleChannels[index];
+  openChannelByChannel: function (channel) {
     if (!channel) return;
     this.currentChannel = channel;
     this.updatePlayerOsd(channel);
@@ -933,6 +1372,11 @@ var App = {
     if (playerView) playerView.className = '';
     this.showPlayerControls();
     Player.play(channel.streamUrl);
+  },
+
+  openChannel: function (index) {
+    var channel = this.visibleChannels[index];
+    this.openChannelByChannel(channel);
   },
 
   updatePlayerOsd: function (channel) {
@@ -993,6 +1437,12 @@ var App = {
     var playerView = document.getElementById('playerView');
     if (playerView) playerView.className = 'hidden';
     this.currentChannel = null;
+    this.focusZone = 'grid';
+    if (this.category === 'favorites') {
+      this.updateCarouselClasses();
+    } else {
+      this.setFocus(this.focusIndex);
+    }
   },
 
   previousChannel: function () {
@@ -1038,9 +1488,67 @@ var App = {
 
   bindMouseHandlers: function () {
     var grid = document.getElementById('channelGrid');
+    var carousel = document.getElementById('carouselContainer');
     var shade = document.getElementById('playerShade');
     var playerView = document.getElementById('playerView');
     var self = this;
+
+    if (carousel) {
+      carousel.onclick = function (event) {
+        event = event || window.event;
+        var target = event.target || event.srcElement;
+        while (target && target !== carousel) {
+          if (typeof target.className === 'string' && target.className.indexOf('carouselFavBtn') !== -1) {
+            var favId = target.getAttribute('data-id');
+            if (favId) {
+              self.toggleFavorite(favId);
+            }
+            self.prevent(event);
+            return false;
+          }
+          if (typeof target.className === 'string' && target.className.indexOf('carouselCard') !== -1) {
+            var cardIdx = parseInt(target.getAttribute('data-index'), 10);
+            if (!isNaN(cardIdx)) {
+              if (self.carouselIndex === cardIdx) {
+                var favList = self.getFavoritesChannels();
+                if (favList[cardIdx]) {
+                  self.openChannelByChannel(favList[cardIdx]);
+                }
+              } else {
+                self.carouselIndex = cardIdx;
+                self.focusZone = 'grid';
+                self.clearTopFocus();
+                self.updateCarouselClasses();
+              }
+            }
+            self.prevent(event);
+            return false;
+          }
+          target = target.parentNode;
+        }
+      };
+
+      carousel.oncontextmenu = function (event) {
+        event = event || window.event;
+        var target = event.target || event.srcElement;
+        while (target && target !== carousel) {
+          if (typeof target.className === 'string' && target.className.indexOf('carouselCard') !== -1) {
+            var cardIdx = parseInt(target.getAttribute('data-index'), 10);
+            if (!isNaN(cardIdx)) {
+              var favList = self.getFavoritesChannels();
+              if (favList[cardIdx]) {
+                self.currentChannel = favList[cardIdx];
+                self.showGuide();
+              }
+            }
+            self.prevent(event);
+            return false;
+          }
+          target = target.parentNode;
+        }
+        return true;
+      };
+    }
 
     grid.onclick = function (event) {
       event = event || window.event;
@@ -1360,8 +1868,11 @@ var App = {
   mouseFocus: function (index) { this.setFocus(index); },
 
   prevent: function (event) {
-    if (event && event.preventDefault) event.preventDefault();
-    if (event) event.returnValue = false;
+    if (!event) return;
+    if (event.preventDefault) event.preventDefault();
+    if (event.stopPropagation) event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    event.returnValue = false;
   },
 
   formatTime: function (date) {
