@@ -27,10 +27,14 @@ button, select {
   box-sizing: border-box;
 }
 
-button:hover, button.focused, button.topFocused, select:focus, select.topFocused, .channelCard:hover, .channelCard.focused {
+button:hover, button.focused, button.topFocused, button:focus, select:focus, select.topFocused, .channelCard:hover, .channelCard.focused, .channelCard:focus {
   background: #153f4d;
   border-color: #63d8df;
   outline: none;
+}
+.chip.topFocused {
+  border-color: #63d8df !important;
+  box-shadow: 0 0 6px rgba(99, 216, 223, 0.6);
 }
 button:disabled {
   color: #657681;

@@ -32,6 +32,57 @@ try {
   }
 } catch (ignorePluginError) {}
 
+var Audio = {
+  plugin: null,
+  init: function () {
+    try {
+      this.plugin = document.getElementById('pluginObjectAudio');
+    } catch (e) {
+      this.plugin = null;
+    }
+  },
+  volumeUp: function () {
+    if (this.plugin && this.plugin.SetVolumeWithKey) {
+      try {
+        this.plugin.SetVolumeWithKey(0);
+        var vol = this.getVolume();
+        App.updateVolumeUi(vol);
+        return;
+      } catch (e) {}
+    }
+    Player.changeVolume(5);
+  },
+  volumeDown: function () {
+    if (this.plugin && this.plugin.SetVolumeWithKey) {
+      try {
+        this.plugin.SetVolumeWithKey(1);
+        var vol = this.getVolume();
+        App.updateVolumeUi(vol);
+        return;
+      } catch (e) {}
+    }
+    Player.changeVolume(-5);
+  },
+  getVolume: function () {
+    if (this.plugin && this.plugin.GetVolume) {
+      try {
+        return this.plugin.GetVolume();
+      } catch (e) {}
+    }
+    return Player.getVolume();
+  },
+  toggleMute: function () {
+    if (this.plugin && this.plugin.SetSystemMute && this.plugin.GetSystemMute) {
+      try {
+        var current = this.plugin.GetSystemMute();
+        this.plugin.SetSystemMute(!current);
+        App.setStatus(!current ? 'TV Muted' : 'TV Unmuted');
+        return;
+      } catch (e) {}
+    }
+  }
+};
+
 var Player = {
   object: null,
   playing: false,
@@ -210,13 +261,66 @@ var App = {
 
   init: function () {
     Player.init();
+    Audio.init();
     this.loadState();
     this.bindMouseHandlers();
+    this.initFilterFocus();
     this.installKeyHandler();
     this.ready();
     this.refreshChannels();
     this.loadEpg();
     this.startClock();
+  },
+
+  updateVolumeUi: function (vol) {
+    var volLabel = document.getElementById('volumeLabel');
+    if (volLabel) volLabel.innerHTML = vol + '%';
+    this.showPlayerControls();
+  },
+
+  initFilterFocus: function () {
+    var self = this;
+    var fav = document.getElementById('favoritesFilter');
+    var all = document.getElementById('allFilter');
+    var cat = document.getElementById('categoryFilter');
+    var lang = document.getElementById('languageFilter');
+    var ref = document.getElementById('refreshButton');
+
+    if (fav) {
+      fav.onfocus = function () {
+        self.focusZone = 'top';
+        self.topFocusIndex = 0;
+        self.updateTopFocus();
+      };
+    }
+    if (all) {
+      all.onfocus = function () {
+        self.focusZone = 'top';
+        self.topFocusIndex = 1;
+        self.updateTopFocus();
+      };
+    }
+    if (cat) {
+      cat.onfocus = function () {
+        self.focusZone = 'top';
+        self.topFocusIndex = 2;
+        self.updateTopFocus();
+      };
+    }
+    if (lang) {
+      lang.onfocus = function () {
+        self.focusZone = 'top';
+        self.topFocusIndex = 3;
+        self.updateTopFocus();
+      };
+    }
+    if (ref) {
+      ref.onfocus = function () {
+        self.focusZone = 'top';
+        self.topFocusIndex = 4;
+        self.updateTopFocus();
+      };
+    }
   },
 
   ready: function () {
@@ -385,12 +489,23 @@ var App = {
     var allBtn = document.getElementById('allFilter');
     var favBtn = document.getElementById('favoritesFilter');
     var catSelect = document.getElementById('categoryFilter');
-    if (allBtn) allBtn.className = value === 'all' ? 'chip active' : 'chip';
-    if (favBtn) favBtn.className = value === 'favorites' ? 'chip active' : 'chip';
-    if (catSelect && value !== 'all' && value !== 'favorites') {
-      catSelect.value = value;
+    if (allBtn) {
+      allBtn.className = value === 'all' ? 'chip active' : 'chip';
+    }
+    if (favBtn) {
+      favBtn.className = value === 'favorites' ? 'chip active' : 'chip';
+    }
+    if (catSelect) {
+      if (value !== 'all' && value !== 'favorites') {
+        catSelect.value = value;
+      } else {
+        catSelect.selectedIndex = 0;
+      }
     }
     this.render();
+    if (this.focusZone === 'top') {
+      this.updateTopFocus();
+    }
   },
 
   nextCategory: function () {
@@ -613,15 +728,18 @@ var App = {
       this.prevent(event);
       return false;
     }
-    if (key === 'left') {
-      this.changeVolume(-5);
-      this.showPlayerControls();
+    if (key === 'vol_down' || key === 'left') {
+      Audio.volumeDown();
       this.prevent(event);
       return false;
     }
-    if (key === 'right') {
-      this.changeVolume(5);
-      this.showPlayerControls();
+    if (key === 'vol_up' || key === 'right') {
+      Audio.volumeUp();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'mute') {
+      Audio.toggleMute();
       this.prevent(event);
       return false;
     }
@@ -642,6 +760,9 @@ var App = {
       return false;
     }
     if (key === 'stop' || key === 'return' || key === 'back') {
+      if (widgetAPI && widgetAPI.blockNavigation) {
+        try { widgetAPI.blockNavigation(event); } catch (e) {}
+      }
       this.closePlayer();
       this.prevent(event);
       return false;
@@ -680,11 +801,48 @@ var App = {
       this.prevent(event);
       return false;
     }
+    if (key === 'all_filter') {
+      this.setCategory('all');
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'fav_filter') {
+      this.setCategory('favorites');
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'vol_up') {
+      Audio.volumeUp();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'vol_down') {
+      Audio.volumeDown();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'mute') {
+      Audio.toggleMute();
+      this.prevent(event);
+      return false;
+    }
     if (key === 'enter') {
+      var activeEl = document.activeElement;
+      if (activeEl && (activeEl.id === 'allFilter' || activeEl.id === 'favoritesFilter' || activeEl.id === 'refreshButton')) {
+        if (activeEl.id === 'allFilter') {
+          this.setCategory('all');
+        } else if (activeEl.id === 'favoritesFilter') {
+          this.setCategory('favorites');
+        } else if (activeEl.id === 'refreshButton') {
+          this.refreshChannels();
+        }
+        this.prevent(event);
+        return false;
+      }
+
       if (this.focusZone === 'top') {
         this.activateTopFocus();
       } else {
-        var activeEl = document.activeElement;
         var targetCard = this.findChannelTarget(activeEl);
         if (targetCard && targetCard.className.indexOf('favoriteButton') !== -1) {
           this.toggleFavorite(targetCard.getAttribute('data-id'));
@@ -875,6 +1033,19 @@ var App = {
     // Keyboard Enter (13) and Space (32)
     if (code === 13 || code === 32) return 'enter';
 
+    // Keyboard Backspace (8), 'Q' (81), 'X' (88) -> Return / Back
+    // Note: Esc (27) is omitted here to avoid triggering TV OS full exit
+    if (code === 8 || code === 81 || code === 88) return 'return';
+
+    // Keyboard Volume controls: media keys (174, 175, 173) and +/- (187, 189, 107, 109) and 'M' (77)
+    if (code === 175 || code === 107 || code === 187) return 'vol_up';
+    if (code === 174 || code === 109 || code === 189) return 'vol_down';
+    if (code === 173 || code === 77) return 'mute';
+
+    // Keyboard Hotkeys: 'A' (65) -> All channels, 'F' (70) -> Favorites
+    if (code === 65) return 'all_filter';
+    if (code === 70) return 'fav_filter';
+
     if (tvKey) {
       if (code === tvKey.KEY_LEFT) return 'left';
       if (code === tvKey.KEY_RIGHT) return 'right';
@@ -882,6 +1053,9 @@ var App = {
       if (code === tvKey.KEY_DOWN) return 'down';
       if (code === tvKey.KEY_ENTER) return 'enter';
       if (code === tvKey.KEY_RETURN) return 'return';
+      if (code === tvKey.KEY_VOL_UP || code === tvKey.KEY_VOLUP) return 'vol_up';
+      if (code === tvKey.KEY_VOL_DOWN || code === tvKey.KEY_VOLDOWN) return 'vol_down';
+      if (code === tvKey.KEY_MUTE) return 'mute';
       if (code === tvKey.KEY_RED) return 'red';
       if (code === tvKey.KEY_GREEN) return 'green';
       if (code === tvKey.KEY_YELLOW) return 'yellow';
@@ -910,7 +1084,7 @@ var App = {
     if (code === 39) return 'right';
     if (code === 40) return 'down';
     if (code === 13) return 'enter';
-    if (code === 8 || code === 27) return 'return';
+    if (code === 8) return 'return';
     if (code === 33) return 'ch_up';
     if (code === 34) return 'ch_down';
     if (code === 73) return 'info';       // 'I'
@@ -993,6 +1167,8 @@ var App = {
     var playerView = document.getElementById('playerView');
     if (playerView) playerView.className = 'hidden';
     this.currentChannel = null;
+    this.focusZone = 'grid';
+    this.setFocus(this.focusIndex);
   },
 
   previousChannel: function () {
