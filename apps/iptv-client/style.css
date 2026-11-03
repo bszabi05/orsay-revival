@@ -103,10 +103,11 @@ button:disabled {
   border: 1px solid #29404e;
   cursor: pointer;
 }
-.channelCard.focused {
+.channelCard.focused, .channelCard:focus {
   background: #153f4d;
   border-color: #63d8df;
   box-shadow: 0 0 8px rgba(99, 216, 223, 0.4);
+  outline: none;
 }
 .channelNumber {
   position: absolute;

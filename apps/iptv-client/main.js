@@ -470,7 +470,7 @@ var App = {
     var favoriteText = isFav ? '&#9733;' : '&#9734;';
     var favoriteClass = isFav ? 'favoriteButton isFav' : 'favoriteButton';
 
-    return '<div class="channelCard" id="channel-' + index + '" tabindex="-1" data-index="' + index +
+    return '<div class="channelCard" id="channel-' + index + '" tabindex="0" data-index="' + index +
       '" data-id="' + this.escape(channel.id) + '">' +
       '<span class="channelNumber">' + channelNumber + '</span>' +
       '<button class="' + favoriteClass + '" data-id="' + this.escape(channel.id) + '">' +
@@ -524,11 +524,21 @@ var App = {
     }
     this.focusIndex = index;
     this.focusItems[index].className += ' focused';
+    try {
+      if (this.focusItems[index].focus) {
+        this.focusItems[index].focus();
+      }
+    } catch (e) {}
   },
 
   clearGridFocus: function () {
     for (var i = 0; i < this.focusItems.length; i++) {
       this.focusItems[i].className = this.focusItems[i].className.replace(' focused', '');
+      try {
+        if (this.focusItems[i].blur) {
+          this.focusItems[i].blur();
+        }
+      } catch (e) {}
     }
   },
 
@@ -567,9 +577,9 @@ var App = {
 
   installKeyHandler: function () {
     var self = this;
-    window.onkeydown = function (event) {
+    var keyListener = function (event) {
       event = event || window.event;
-      var code = event.keyCode;
+      var code = event.keyCode || event.which;
       var key = self.keyName(code);
 
       if (self.isGuideOpen()) {
@@ -587,6 +597,9 @@ var App = {
         return self.handleGridKey(key, event);
       }
     };
+
+    window.onkeydown = keyListener;
+    document.onkeydown = keyListener;
   },
 
   handlePlayerKey: function (key, event) {
@@ -671,9 +684,18 @@ var App = {
       if (this.focusZone === 'top') {
         this.activateTopFocus();
       } else {
-        var pageStart = (this.currentPage - 1) * this.pageSize;
-        var actualIndex = pageStart + this.focusIndex;
-        this.openChannel(actualIndex);
+        var activeEl = document.activeElement;
+        var targetCard = this.findChannelTarget(activeEl);
+        if (targetCard && targetCard.className.indexOf('favoriteButton') !== -1) {
+          this.toggleFavorite(targetCard.getAttribute('data-id'));
+        } else if (targetCard && targetCard.getAttribute('data-index')) {
+          var cardIdx = parseInt(targetCard.getAttribute('data-index'), 10);
+          this.openChannel(cardIdx);
+        } else {
+          var pageStart = (this.currentPage - 1) * this.pageSize;
+          var actualIndex = pageStart + this.focusIndex;
+          this.openChannel(actualIndex);
+        }
       }
       this.prevent(event);
       return false;
@@ -850,6 +872,9 @@ var App = {
   },
 
   keyName: function (code) {
+    // Keyboard Enter (13) and Space (32)
+    if (code === 13 || code === 32) return 'enter';
+
     if (tvKey) {
       if (code === tvKey.KEY_LEFT) return 'left';
       if (code === tvKey.KEY_RIGHT) return 'right';
@@ -1024,7 +1049,13 @@ var App = {
       if (target.className.indexOf('favoriteButton') !== -1) {
         self.toggleFavorite(target.getAttribute('data-id'));
       } else {
-        self.openChannel(parseInt(target.getAttribute('data-index'), 10));
+        var idx = parseInt(target.getAttribute('data-index'), 10);
+        if (!isNaN(idx)) {
+          var pageStart = (self.currentPage - 1) * self.pageSize;
+          self.focusZone = 'grid';
+          self.setFocus(idx - pageStart);
+          self.openChannel(idx);
+        }
       }
     };
     grid.onmouseover = function (event) {
@@ -1032,8 +1063,23 @@ var App = {
       var target = self.findChannelTarget(event.target || event.srcElement);
       if (target && target.className.indexOf('channelCard') !== -1) {
         var idx = parseInt(target.getAttribute('data-index'), 10);
-        var pageStart = (self.currentPage - 1) * self.pageSize;
-        self.mouseFocus(idx - pageStart);
+        if (!isNaN(idx)) {
+          var pageStart = (self.currentPage - 1) * self.pageSize;
+          self.focusZone = 'grid';
+          self.mouseFocus(idx - pageStart);
+        }
+      }
+    };
+    grid.onfocusin = function (event) {
+      event = event || window.event;
+      var target = self.findChannelTarget(event.target || event.srcElement);
+      if (target && target.className.indexOf('channelCard') !== -1) {
+        var idx = parseInt(target.getAttribute('data-index'), 10);
+        if (!isNaN(idx)) {
+          var pageStart = (self.currentPage - 1) * self.pageSize;
+          self.focusZone = 'grid';
+          self.setFocus(idx - pageStart);
+        }
       }
     };
     grid.oncontextmenu = function (event) {
