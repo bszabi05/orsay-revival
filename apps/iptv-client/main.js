@@ -242,6 +242,7 @@ var App = {
   currentChannel: null,
 
   focusIndex: 0,
+  carouselIndex: 0,
   focusItems: [],
   focusZone: 'grid', // 'grid' | 'top'
   topFocusIndex: 0,
@@ -288,6 +289,7 @@ var App = {
 
     if (fav) {
       fav.onfocus = function () {
+        if (self.focusZone === 'top' && self.topFocusIndex === 0) return;
         self.focusZone = 'top';
         self.topFocusIndex = 0;
         self.updateTopFocus();
@@ -295,6 +297,7 @@ var App = {
     }
     if (all) {
       all.onfocus = function () {
+        if (self.focusZone === 'top' && self.topFocusIndex === 1) return;
         self.focusZone = 'top';
         self.topFocusIndex = 1;
         self.updateTopFocus();
@@ -302,6 +305,7 @@ var App = {
     }
     if (cat) {
       cat.onfocus = function () {
+        if (self.focusZone === 'top' && self.topFocusIndex === 2) return;
         self.focusZone = 'top';
         self.topFocusIndex = 2;
         self.updateTopFocus();
@@ -309,6 +313,7 @@ var App = {
     }
     if (lang) {
       lang.onfocus = function () {
+        if (self.focusZone === 'top' && self.topFocusIndex === 3) return;
         self.focusZone = 'top';
         self.topFocusIndex = 3;
         self.updateTopFocus();
@@ -316,6 +321,7 @@ var App = {
     }
     if (ref) {
       ref.onfocus = function () {
+        if (self.focusZone === 'top' && self.topFocusIndex === 4) return;
         self.focusZone = 'top';
         self.topFocusIndex = 4;
         self.updateTopFocus();
@@ -544,8 +550,132 @@ var App = {
     return result;
   },
 
+  getFavoritesChannels: function () {
+    var result = [];
+    var i;
+    for (i = 0; i < this.channels.length; i++) {
+      if (this.isFavorite(this.channels[i].id)) {
+        result.push(this.channels[i]);
+      }
+    }
+    return result;
+  },
+
   render: function () {
+    if (this.category === 'favorites') {
+      this.renderCarousel();
+    } else {
+      this.renderGrid();
+    }
+  },
+
+  renderCarousel: function () {
     var grid = document.getElementById('channelGrid');
+    var pagination = document.getElementById('pagination');
+    var container = document.getElementById('carouselContainer');
+    if (grid) grid.className = 'hidden';
+    if (pagination) pagination.className = 'hidden';
+    if (!container) return;
+    container.className = '';
+
+    var list = this.getFavoritesChannels();
+    this.visibleChannels = list;
+
+    if (!list.length) {
+      container.innerHTML = '<div class="empty">No favorites yet. Switch to "All" to browse channels or press Red to favorite!</div>';
+      this.focusZone = 'top';
+      this.topFocusIndex = 0;
+      this.updateTopFocus();
+      return;
+    }
+
+    if (this.carouselIndex >= list.length) this.carouselIndex = list.length - 1;
+    if (this.carouselIndex < 0) this.carouselIndex = 0;
+
+    var html = '';
+    var i;
+    for (i = 0; i < list.length; i++) {
+      html += this.carouselCardHtml(list[i], i);
+    }
+    container.innerHTML = html;
+    this.updateCarouselClasses();
+  },
+
+  carouselCardHtml: function (channel, index) {
+    var program = this.currentProgram(channel);
+    var progress = program ? this.progress(program) : 0;
+    var logo = '';
+    if (channel.logoUrl) {
+      var encodedLogoUrl = encodeURIComponent(btoa(channel.logoUrl));
+      var proxiedLogoUrl = AppConfig.logoProxyUrl + '/logo?b64=' + encodedLogoUrl;
+      logo = '<img class="carouselLogo" data-src="' + this.escape(proxiedLogoUrl) + '" alt="" onerror="this.style.display=\'none\';" />';
+    }
+    var chNum = channel.channelNumber || (index + 1);
+
+    return '<div class="carouselCard" id="carousel-card-' + index + '" tabindex="0" data-index="' + index + '" data-id="' + this.escape(channel.id) + '">' +
+      '<span class="carouselNumber">#' + chNum + '</span>' +
+      '<button class="carouselFavBtn" data-id="' + this.escape(channel.id) + '">&#9733;</button>' +
+      logo +
+      '<div class="carouselName">' + this.escape(channel.name) + '</div>' +
+      '<div class="carouselMeta">' + this.escape(channel.categoryName || 'Favorite') + '</div>' +
+      '<div class="carouselProgram">' + (program ? this.escape(program.title) : 'No EPG data') + '</div>' +
+      '<div class="carouselProgress"><span style="width:' + progress + '%;"></span></div>' +
+      '<div class="carouselPrompt">PRESS ENTER TO WATCH</div>' +
+      '</div>';
+  },
+
+  updateCarouselClasses: function () {
+    var list = this.getFavoritesChannels();
+    if (!list.length) return;
+    var total = list.length;
+    var cur = this.carouselIndex;
+
+    var prev = (cur - 1 + total) % total;
+    var next = (cur + 1) % total;
+    var farPrev = (cur - 2 + total) % total;
+    var farNext = (cur + 2) % total;
+
+    var i;
+    for (i = 0; i < total; i++) {
+      var el = document.getElementById('carousel-card-' + i);
+      if (!el) continue;
+
+      var cls = 'carouselCard';
+      if (i === cur) {
+        cls += ' focused';
+      } else if (total > 1 && i === prev) {
+        cls += ' prev';
+      } else if (total > 2 && i === next) {
+        cls += ' next';
+      } else if (total > 3 && i === farPrev) {
+        cls += ' far-prev';
+      } else if (total > 4 && i === farNext) {
+        cls += ' far-next';
+      }
+      el.className = cls;
+
+      if (cls !== 'carouselCard') {
+        var img = el.getElementsByTagName('img')[0];
+        if (img && !img.src && img.getAttribute('data-src')) {
+          img.src = img.getAttribute('data-src');
+        }
+      }
+    }
+
+    var focusedEl = document.getElementById('carousel-card-' + cur);
+    if (focusedEl && this.focusZone === 'grid') {
+      try { if (focusedEl.focus) focusedEl.focus(); } catch (e) {}
+    }
+  },
+
+  renderGrid: function () {
+    var container = document.getElementById('carouselContainer');
+    if (container) container.className = 'hidden';
+    var grid = document.getElementById('channelGrid');
+    if (grid) grid.className = '';
+    var pagination = document.getElementById('pagination');
+    if (pagination) pagination.className = '';
+
     var list = this.filtered();
     var pageStart, pageEnd;
     var html = '';
@@ -560,9 +690,7 @@ var App = {
       html += this.cardHtml(list[i], i, list[i].channelNumber || (i + 1));
     }
     if (!html) {
-      html = this.category === 'favorites' && !this.favorites.length ?
-        '<div class="empty">No favorites yet. Press Green to browse categories!</div>' :
-        '<div class="empty">No channels match this filter.</div>';
+      html = '<div class="empty">No channels match this filter.</div>';
     }
     grid.innerHTML = html;
     this.renderPagination();
@@ -648,7 +776,7 @@ var App = {
 
   clearGridFocus: function () {
     for (var i = 0; i < this.focusItems.length; i++) {
-      this.focusItems[i].className = this.focusItems[i].className.replace(' focused', '');
+      this.focusItems[i].className = this.focusItems[i].className.replace(/\s*focused/g, '');
       try {
         if (this.focusItems[i].blur) {
           this.focusItems[i].blur();
@@ -661,10 +789,12 @@ var App = {
     for (var i = 0; i < this.topFocusIds.length; i++) {
       var el = document.getElementById(this.topFocusIds[i]);
       if (el) {
-        el.className = el.className.replace(' topFocused', '');
+        el.className = el.className.replace(/\s*topFocused/g, '');
         if (i === this.topFocusIndex) {
           el.className += ' topFocused';
-          if (el.focus) el.focus();
+          if (el.focus) {
+            try { el.focus(); } catch (e) {}
+          }
         }
       }
     }
@@ -674,8 +804,10 @@ var App = {
     for (var i = 0; i < this.topFocusIds.length; i++) {
       var el = document.getElementById(this.topFocusIds[i]);
       if (el) {
-        el.className = el.className.replace(' topFocused', '');
-        if (el.blur) el.blur();
+        el.className = el.className.replace(/\s*topFocused/g, '');
+        if (el.blur) {
+          try { el.blur(); } catch (e) {}
+        }
       }
     }
   },
@@ -842,6 +974,11 @@ var App = {
 
       if (this.focusZone === 'top') {
         this.activateTopFocus();
+      } else if (this.category === 'favorites') {
+        var favList = this.getFavoritesChannels();
+        if (favList.length && favList[this.carouselIndex]) {
+          this.openChannelByChannel(favList[this.carouselIndex]);
+        }
       } else {
         var targetCard = this.findChannelTarget(activeEl);
         if (targetCard && targetCard.className.indexOf('favoriteButton') !== -1) {
@@ -860,9 +997,16 @@ var App = {
     }
     if (key === 'red') {
       if (this.focusZone === 'grid') {
-        var pStart = (this.currentPage - 1) * this.pageSize;
-        var aIdx = pStart + this.focusIndex;
-        this.toggleFavoriteByIndex(aIdx);
+        if (this.category === 'favorites') {
+          var curFavs = this.getFavoritesChannels();
+          if (curFavs.length && curFavs[this.carouselIndex]) {
+            this.toggleFavorite(curFavs[this.carouselIndex].id);
+          }
+        } else {
+          var pStart = (this.currentPage - 1) * this.pageSize;
+          var aIdx = pStart + this.focusIndex;
+          this.toggleFavoriteByIndex(aIdx);
+        }
       } else {
         this.setCategory(this.category === 'favorites' ? 'all' : 'favorites');
       }
@@ -875,9 +1019,17 @@ var App = {
       return false;
     }
     if (key === 'yellow') {
-      var pgStart = (this.currentPage - 1) * this.pageSize;
-      var curIdx = pgStart + this.focusIndex;
-      this.showGuideForIndex(curIdx);
+      if (this.category === 'favorites') {
+        var curFavsGuide = this.getFavoritesChannels();
+        if (curFavsGuide.length && curFavsGuide[this.carouselIndex]) {
+          this.currentChannel = curFavsGuide[this.carouselIndex];
+          this.showGuide();
+        }
+      } else {
+        var pgStart = (this.currentPage - 1) * this.pageSize;
+        var curIdx = pgStart + this.focusIndex;
+        this.showGuideForIndex(curIdx);
+      }
       this.prevent(event);
       return false;
     }
@@ -926,7 +1078,37 @@ var App = {
       } else if (key === 'down') {
         this.focusZone = 'grid';
         this.clearTopFocus();
-        this.setFocus(this.focusIndex);
+        if (this.category === 'favorites') {
+          this.updateCarouselClasses();
+        } else {
+          if (this.focusIndex >= this.focusItems.length) this.focusIndex = 0;
+          this.setFocus(this.focusIndex);
+        }
+      }
+      return;
+    }
+
+    if (this.category === 'favorites') {
+      var favs = this.getFavoritesChannels();
+      if (!favs.length) {
+        if (key === 'up') {
+          this.focusZone = 'top';
+          this.topFocusIndex = 0;
+          this.updateTopFocus();
+        }
+        return;
+      }
+      if (key === 'left') {
+        this.carouselIndex = (this.carouselIndex - 1 + favs.length) % favs.length;
+        this.updateCarouselClasses();
+      } else if (key === 'right') {
+        this.carouselIndex = (this.carouselIndex + 1) % favs.length;
+        this.updateCarouselClasses();
+      } else if (key === 'up') {
+        this.focusZone = 'top';
+        this.topFocusIndex = 0;
+        this.updateTopFocus();
+        this.updateCarouselClasses();
       }
       return;
     }
@@ -1097,8 +1279,7 @@ var App = {
     return '';
   },
 
-  openChannel: function (index) {
-    var channel = this.visibleChannels[index];
+  openChannelByChannel: function (channel) {
     if (!channel) return;
     this.currentChannel = channel;
     this.updatePlayerOsd(channel);
@@ -1107,6 +1288,11 @@ var App = {
     if (playerView) playerView.className = '';
     this.showPlayerControls();
     Player.play(channel.streamUrl);
+  },
+
+  openChannel: function (index) {
+    var channel = this.visibleChannels[index];
+    this.openChannelByChannel(channel);
   },
 
   updatePlayerOsd: function (channel) {
@@ -1168,7 +1354,11 @@ var App = {
     if (playerView) playerView.className = 'hidden';
     this.currentChannel = null;
     this.focusZone = 'grid';
-    this.setFocus(this.focusIndex);
+    if (this.category === 'favorites') {
+      this.updateCarouselClasses();
+    } else {
+      this.setFocus(this.focusIndex);
+    }
   },
 
   previousChannel: function () {
@@ -1214,9 +1404,67 @@ var App = {
 
   bindMouseHandlers: function () {
     var grid = document.getElementById('channelGrid');
+    var carousel = document.getElementById('carouselContainer');
     var shade = document.getElementById('playerShade');
     var playerView = document.getElementById('playerView');
     var self = this;
+
+    if (carousel) {
+      carousel.onclick = function (event) {
+        event = event || window.event;
+        var target = event.target || event.srcElement;
+        while (target && target !== carousel) {
+          if (typeof target.className === 'string' && target.className.indexOf('carouselFavBtn') !== -1) {
+            var favId = target.getAttribute('data-id');
+            if (favId) {
+              self.toggleFavorite(favId);
+            }
+            self.prevent(event);
+            return false;
+          }
+          if (typeof target.className === 'string' && target.className.indexOf('carouselCard') !== -1) {
+            var cardIdx = parseInt(target.getAttribute('data-index'), 10);
+            if (!isNaN(cardIdx)) {
+              if (self.carouselIndex === cardIdx) {
+                var favList = self.getFavoritesChannels();
+                if (favList[cardIdx]) {
+                  self.openChannelByChannel(favList[cardIdx]);
+                }
+              } else {
+                self.carouselIndex = cardIdx;
+                self.focusZone = 'grid';
+                self.clearTopFocus();
+                self.updateCarouselClasses();
+              }
+            }
+            self.prevent(event);
+            return false;
+          }
+          target = target.parentNode;
+        }
+      };
+
+      carousel.oncontextmenu = function (event) {
+        event = event || window.event;
+        var target = event.target || event.srcElement;
+        while (target && target !== carousel) {
+          if (typeof target.className === 'string' && target.className.indexOf('carouselCard') !== -1) {
+            var cardIdx = parseInt(target.getAttribute('data-index'), 10);
+            if (!isNaN(cardIdx)) {
+              var favList = self.getFavoritesChannels();
+              if (favList[cardIdx]) {
+                self.currentChannel = favList[cardIdx];
+                self.showGuide();
+              }
+            }
+            self.prevent(event);
+            return false;
+          }
+          target = target.parentNode;
+        }
+        return true;
+      };
+    }
 
     grid.onclick = function (event) {
       event = event || window.event;
