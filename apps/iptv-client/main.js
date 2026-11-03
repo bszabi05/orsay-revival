@@ -464,7 +464,7 @@ var App = {
     if (channel.logoUrl) {
       var encodedLogoUrl = encodeURIComponent(btoa(channel.logoUrl));
       var proxiedLogoUrl = AppConfig.logoProxyUrl + '/logo?b64=' + encodedLogoUrl;
-      logo = '<img src="' + this.escape(proxiedLogoUrl) + '" alt="" />';
+      logo = '<img src="' + this.escape(proxiedLogoUrl) + '" alt="" onerror="this.style.display=\'none\';" />';
     }
     var isFav = this.isFavorite(channel.id);
     var favoriteText = isFav ? '&#9733;' : '&#9734;';
@@ -925,8 +925,13 @@ var App = {
     if (logoEl) {
       if (channel.logoUrl) {
         var encodedLogoUrl = encodeURIComponent(btoa(channel.logoUrl));
+        logoEl.onerror = function () {
+          this.className = 'hidden';
+        };
+        logoEl.onload = function () {
+          this.className = '';
+        };
         logoEl.src = AppConfig.logoProxyUrl + '/logo?b64=' + encodedLogoUrl;
-        logoEl.className = '';
       } else {
         logoEl.className = 'hidden';
       }
