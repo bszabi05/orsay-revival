@@ -24,11 +24,13 @@ button, select {
   font-size: 14px;
   padding: 7px 12px;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
-button:hover, button.focused, select:focus, .channelCard:hover, .channelCard.focused {
+button:hover, button.focused, button.topFocused, select:focus, select.topFocused, .channelCard:hover, .channelCard.focused {
   background: #153f4d;
   border-color: #63d8df;
+  outline: none;
 }
 button:disabled {
   color: #657681;
@@ -38,32 +40,32 @@ button:disabled {
 
 #app { width: 960px; height: 540px; position: relative; }
 #topBar {
-  height: 58px;
-  line-height: 58px;
+  height: 52px;
+  line-height: 52px;
   padding: 0 22px;
   background: #101c26;
   border-bottom: 1px solid #263d4a;
 }
 #title {
   color: #63d8df;
-  font-size: 23px;
+  font-size: 22px;
   font-weight: bold;
   letter-spacing: 2px;
 }
 #status {
-  margin-left: 20px;
+  margin-left: 18px;
   color: #91aab5;
   font-size: 13px;
 }
 .topButton {
   float: right;
-  margin-top: 13px;
-  padding-left: 18px;
-  padding-right: 18px;
+  margin-top: 10px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 #filters {
-  height: 43px;
-  padding: 9px 22px 0;
+  height: 42px;
+  padding: 8px 22px 0;
   background: #0e1821;
   border-bottom: 1px solid #1c303d;
 }
@@ -80,18 +82,19 @@ button:disabled {
   margin-left: 6px;
   width: 155px;
 }
+
 #channelGrid {
   position: absolute;
   left: 22px;
-  top: 119px;
+  top: 110px;
   width: 916px;
-  height: 346px;
+  height: 350px;
   overflow: hidden;
 }
 .channelCard {
   position: relative;
   float: left;
-  width: 176px;
+  width: 175px;
   height: 108px;
   margin: 0 8px 9px 0;
   padding: 7px 8px 6px;
@@ -100,17 +103,38 @@ button:disabled {
   border: 1px solid #29404e;
   cursor: pointer;
 }
+.channelCard.focused, .channelCard:focus {
+  background: #153f4d;
+  border-color: #63d8df;
+  box-shadow: 0 0 8px rgba(99, 216, 223, 0.4);
+  outline: none;
+}
+.channelNumber {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  padding: 1px 4px;
+  background: #0b141c;
+  border: 1px solid #283e4d;
+  color: #63d8df;
+  font-size: 10px;
+  font-weight: bold;
+}
 .favoriteButton {
   position: absolute;
-  right: 7px;
-  top: 6px;
-  padding: 3px 6px;
+  right: 6px;
+  top: 5px;
+  padding: 2px 6px;
   font-size: 10px;
   color: #a9c2c9;
 }
+.favoriteButton.isFav {
+  color: #f1c40f;
+  border-color: #d4ac0d;
+}
 .channelCard img {
   width: 42px;
-  height: 32px;
+  height: 30px;
   margin: 1px auto 3px;
   display: block;
 }
@@ -119,8 +143,10 @@ button:disabled {
   padding-right: 3px;
   overflow: hidden;
   color: #f1f8f9;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: bold;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .channelCard .channelMeta {
   color: #78939f;
@@ -132,6 +158,8 @@ button:disabled {
   overflow: hidden;
   color: #b9d5d9;
   font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .progress {
   height: 4px;
@@ -143,38 +171,244 @@ button:disabled {
   height: 4px;
   background: #63d8df;
 }
+
 #pagination {
   position: absolute;
   left: 22px;
-  top: 477px;
+  top: 468px;
   width: 916px;
-  height: 42px;
+  height: 34px;
   text-align: center;
 }
-#pagination button { margin: 0 12px; }
+#pagination button {
+  margin: 0 10px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
 #pageLabel {
   display: inline-block;
   min-width: 90px;
   color: #9db8c1;
   font-size: 13px;
 }
+
+#keyLegend {
+  position: absolute;
+  left: 22px;
+  top: 506px;
+  width: 916px;
+  height: 26px;
+  line-height: 26px;
+  border-top: 1px solid #1a2c38;
+  font-size: 11px;
+  color: #8da4af;
+}
+.keyItem {
+  display: inline-block;
+  margin-right: 18px;
+}
+.keyColor {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+.keyColor.red { background: #e74c3c; }
+.keyColor.green { background: #2ecc71; }
+.keyColor.yellow { background: #f1c40f; }
+.keyColor.blue { background: #3498db; }
+.keyText {
+  display: inline-block;
+  padding: 0 3px;
+  background: #213340;
+  border: 1px solid #365063;
+  color: #d1e2eb;
+  font-size: 10px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+#quickTuning {
+  position: absolute;
+  right: 24px;
+  top: 14px;
+  padding: 6px 16px;
+  background: #0d161e;
+  border: 2px solid #63d8df;
+  color: #63d8df;
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  z-index: 100;
+}
+
 .hidden { display: none !important; }
-#playerView { position: absolute; left: 0; top: 0; width: 960px; height: 540px; background: #000000; z-index: 20; }
-#pluginPlayer { position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 21; }
-#playerShade { position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 22; }
-#playerHeader, #playerControls, #gestureHint { position: absolute; z-index: 23; }
-#playerHeader { left: 22px; top: 18px; right: 22px; padding: 10px; background: #101c26; opacity: 0.92; border-left: 3px solid #63d8df; }
+
+#playerView {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 960px;
+  height: 540px;
+  background: #000000;
+  z-index: 20;
+}
+#playerBuffering {
+  position: absolute;
+  left: 380px;
+  top: 240px;
+  width: 200px;
+  height: 44px;
+  line-height: 44px;
+  text-align: center;
+  background: #101c26;
+  opacity: 0.92;
+  border: 1px solid #63d8df;
+  color: #edf4f7;
+  font-size: 15px;
+  font-weight: bold;
+  z-index: 25;
+}
+#playerShade {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 960px;
+  height: 540px;
+  z-index: 22;
+}
+
+#playerHeader {
+  position: absolute;
+  left: 22px;
+  top: 18px;
+  right: 22px;
+  padding: 10px 14px;
+  background: #101c26;
+  opacity: 0.95;
+  border-left: 4px solid #63d8df;
+  z-index: 23;
+}
 #playerHeader.controlsHidden { display: none; }
-#playerChannelName { font-size: 20px; font-weight: bold; }
-#playerProgramName { margin-left: 20px; color: #a9c2c9; }
-#playerControls { left: 20px; right: 20px; bottom: 20px; padding: 10px; background: #101c26; opacity: 0.94; border-top: 1px solid #2e5360; }
+#playerHeaderTop {
+  height: 26px;
+  line-height: 26px;
+}
+#playerChannelLogo {
+  height: 24px;
+  max-width: 55px;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+#playerChannelNumber {
+  font-size: 19px;
+  font-weight: bold;
+  color: #63d8df;
+  margin-right: 8px;
+}
+#playerChannelName {
+  font-size: 19px;
+  font-weight: bold;
+  color: #ffffff;
+}
+#playerTime {
+  float: right;
+  color: #91aab5;
+  font-size: 13px;
+}
+#playerNowRow, #playerNextRow {
+  font-size: 13px;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#playerNextRow {
+  color: #8da4af;
+}
+.epgTag {
+  display: inline-block;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: bold;
+  background: #1d6470;
+  color: #ffffff;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.epgTag.next {
+  background: #253946;
+  color: #9db8c1;
+}
+#playerProgramName {
+  font-weight: bold;
+  color: #eaf5f7;
+  margin-right: 10px;
+}
+#playerProgramTime {
+  color: #8da4af;
+  font-size: 12px;
+}
+#playerProgressContainer {
+  height: 3px;
+  margin: 5px 0;
+  background: #203340;
+}
+#playerProgressBar {
+  display: block;
+  height: 3px;
+  background: #63d8df;
+}
+
+#playerControls {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 16px;
+  padding: 8px 10px;
+  background: #101c26;
+  opacity: 0.94;
+  border-top: 1px solid #2e5360;
+  z-index: 23;
+}
 #playerControls.controlsHidden { display: none; }
-#playerControls button { margin-right: 6px; }
+#playerControls button { margin-right: 5px; padding: 5px 9px; font-size: 12px; }
 #volumeLabel { display: inline-block; width: 42px; color: #63d8df; text-align: center; }
-#gestureHint { right: 20px; top: 18px; color: #cbd1dd; font-size: 11px; }
-.modal { position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 40; background: #081017; opacity: 0.97; }
-.modalPanel { position: absolute; left: 100px; top: 45px; width: 760px; height: 430px; padding: 18px; overflow: hidden; background: #14212c; border: 1px solid #2e5360; }
+
+.modal {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 960px;
+  height: 540px;
+  z-index: 40;
+  background: #081017;
+  opacity: 0.97;
+}
+.modalPanel {
+  position: absolute;
+  left: 90px;
+  top: 40px;
+  width: 780px;
+  height: 440px;
+  padding: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #14212c;
+  border: 1px solid #2e5360;
+}
 .modalClose { float: right; }
-.modalPanel h2 { color: #63d8df; }
-.guideEntry { padding: 8px; border-bottom: 1px solid #29404e; color: #d7e8eb; }
+.modalPanel h2 { color: #63d8df; margin-top: 0; font-size: 20px; }
+#guideContent {
+  height: 360px;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+.guideEntry {
+  padding: 7px 10px;
+  border-bottom: 1px solid #243947;
+  color: #d7e8eb;
+  font-size: 13px;
+}
 .guideEntry.live { background: #1d6470; }

@@ -7,8 +7,8 @@
   <link rel="stylesheet" type="text/css" href="style.css" />
   <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/Widget.js"></script>
   <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/TVKeyValue.js"></script>
+  <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/Plugin.js"></script>
   <script type="text/javascript" src="config.js"></script>
-  <script type="text/javascript" src="hls.min.js"></script>
 </head>
 <body>
   <div id="app">
@@ -30,20 +30,50 @@
     </div>
 
     <div id="channelGrid"></div>
+
     <div id="pagination">
       <button id="previousPageButton" onclick="App.previousPage();">Previous page</button>
       <span id="pageLabel">Page 1 / 1</span>
       <button id="nextPageButton" onclick="App.nextPage();">Next page</button>
     </div>
 
+    <div id="keyLegend">
+      <span class="keyItem"><span class="keyColor red"></span> Favorite</span>
+      <span class="keyItem"><span class="keyColor green"></span> Category</span>
+      <span class="keyItem"><span class="keyColor yellow"></span> Guide</span>
+      <span class="keyItem"><span class="keyColor blue"></span> Refresh</span>
+      <span class="keyItem"><span class="keyText">0-9</span> Tune</span>
+      <span class="keyItem"><span class="keyText">CH &plusmn;</span> Zap / Page</span>
+    </div>
+
+    <div id="quickTuning" class="hidden"></div>
+
     <div id="playerView" class="hidden">
       <video id="html5Player" style="position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 21; background: #000; object-fit: contain;"></video>
+      <div id="playerBuffering" class="hidden">Connecting...</div>
       <div id="playerShade"></div>
 
       <div id="playerHeader">
-        <span id="playerChannelName"></span>
-        <span id="playerProgramName"></span>
+        <div id="playerHeaderTop">
+          <img id="playerChannelLogo" class="hidden" src="" alt="" />
+          <span id="playerChannelNumber"></span>
+          <span id="playerChannelName"></span>
+          <span id="playerTime"></span>
+        </div>
+        <div id="playerNowRow">
+          <span class="epgTag">NOW</span>
+          <span id="playerProgramName"></span>
+          <span id="playerProgramTime"></span>
+        </div>
+        <div id="playerProgressContainer" class="progress">
+          <span id="playerProgressBar" style="width: 0%;"></span>
+        </div>
+        <div id="playerNextRow">
+          <span class="epgTag next">NEXT</span>
+          <span id="playerNextProgram">No EPG data</span>
+        </div>
       </div>
+
       <div id="playerControls">
         <button id="backButton" onclick="App.closePlayer();">Back</button>
         <button onclick="App.previousChannel();">Previous</button>
