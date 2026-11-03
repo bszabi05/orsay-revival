@@ -1,28 +1,36 @@
 /*
- * Legacy TV application controller.
+ * Legacy TV application controller for Samsung Orsay OS.
  *
- * This file deliberately uses ES5 syntax only:
+ * This file strictly uses ES5 syntax only:
  *   - var, function declarations and anonymous functions
  *   - XMLHttpRequest for network requests
- *   - no promises, modules, classes, arrow functions or framework code
+ *   - no promises, modules, classes, arrow functions or template literals
+ *   - conservative memory allocation to prevent TV Out-Of-Memory (OOM) crashes
  *
- * The Orsay WebKit runtime exposes widgetAPI and tvKey after the API scripts
- * in index.html have loaded. The guards below also make the UI inspectable in
- * a normal desktop browser, where those Samsung objects do not exist.
+ * Compatible with Samsung Smart TV Orsay WebKit runtime & desktop browsers.
  */
 
 var widgetAPI = null;
 var tvKey = null;
+var pluginAPI = null;
+
 try {
   if (typeof Common !== 'undefined' && Common.API && Common.API.Widget) {
     widgetAPI = new Common.API.Widget();
   }
 } catch (ignoreWidgetError) {}
+
 try {
   if (typeof Common !== 'undefined' && Common.API && Common.API.TVKeyValue) {
     tvKey = new Common.API.TVKeyValue();
   }
 } catch (ignoreKeyError) {}
+
+try {
+  if (typeof Common !== 'undefined' && Common.API && Common.API.Plugin) {
+    pluginAPI = new Common.API.Plugin();
+  }
+} catch (ignorePluginError) {}
 
 var Player = {
   object: null,
@@ -30,16 +38,23 @@ var Player = {
   currentUrl: '',
   volume: 100,
   aspect: 0,
-  aspects: ['16:9', '4:3', 'Crop'],
+  aspects: ['16:9', '4:3', 'Fill'],
 
   init: function () {
     this.object = document.getElementById('html5Player');
     this.bindEvents();
   },
 
-  setStatus: function (message) {
-    var status = document.getElementById('playerProgramName');
-    if (status) status.innerHTML = 'Status: ' + message;
+  setStatus: function (message, isBuffering) {
+    var buffering = document.getElementById('playerBuffering');
+    if (buffering) {
+      if (isBuffering && message) {
+        buffering.innerHTML = this.escape(message);
+        buffering.className = '';
+      } else {
+        buffering.className = 'hidden';
+      }
+    }
     if (window.console && window.console.log) {
       window.console.log('Player: ' + message);
     }
@@ -50,32 +65,36 @@ var Player = {
     if (!this.object) return;
 
     this.object.addEventListener('loadstart', function () {
-      self.setStatus('Loading via proxy...');
+      self.setStatus('Csatlakozás...', true);
     });
     this.object.addEventListener('waiting', function () {
-      self.setStatus('Buffering...');
+      self.setStatus('Pufferelés...', true);
     });
     this.object.addEventListener('playing', function () {
       self.playing = true;
-      self.setStatus('Playing');
+      self.setStatus('', false);
     });
     this.object.addEventListener('error', function () {
       self.playing = false;
       var errCode = self.object.error ? self.object.error.code : 'Unknown';
+      self.setStatus('Hiba (Kód: ' + errCode + ')', true);
       if (errCode === 4) {
-        self.setStatus('Stream Error 4. Skipping in 3s...');
-        setTimeout(function() {
-          if (App && typeof App.nextChannel === 'function') App.nextChannel();
+        setTimeout(function () {
+          if (App && typeof App.nextChannel === 'function') {
+            App.nextChannel();
+          }
         }, 3000);
-      } else {
-        self.setStatus('Playback Error (Code: ' + errCode + ')');
       }
     });
   },
 
   setArea: function (mode) {
-    var left = 0, width = 960;
-    if (mode === 1) { left = 120; width = 720; }
+    var left = 0;
+    var width = 960;
+    if (mode === 1) {
+      left = 120;
+      width = 720;
+    }
     if (this.object) {
       this.object.style.left = left + 'px';
       this.object.style.width = width + 'px';
@@ -90,14 +109,14 @@ var Player = {
     this.currentUrl = AppConfig.proxyUrl + b64url;
 
     this.setArea(this.aspect);
-    this.setStatus('Connecting to proxy...');
+    this.setStatus('Csatlakozás...', true);
 
     if (this.object) {
       this.object.src = this.currentUrl;
       try {
         this.object.play();
       } catch (playError) {
-        this.setStatus('Play Request Error: ' + playError);
+        this.setStatus('Hiba: ' + playError, true);
       }
     }
     this.setVolume(this.volume);
@@ -105,12 +124,13 @@ var Player = {
 
   stop: function () {
     if (this.object) {
-      try { this.object.pause(); } catch(e) {}
+      try { this.object.pause(); } catch (e) {}
       this.object.src = '';
       this.object.removeAttribute('src');
     }
     this.playing = false;
     this.currentUrl = '';
+    this.setStatus('', false);
   },
 
   toggle: function () {
@@ -118,9 +138,11 @@ var Player = {
     if (this.playing) {
       try { this.object.pause(); } catch (e) {}
       this.playing = false;
+      this.setStatus('Szüneteltetve', true);
     } else {
       try { this.object.play(); } catch (e) {}
       this.playing = true;
+      this.setStatus('', false);
     }
   },
 
@@ -129,7 +151,8 @@ var Player = {
     if (this.object) {
       try { this.object.volume = this.volume / 100; } catch (e) {}
     }
-    document.getElementById('volumeLabel').innerHTML = this.volume + '%';
+    var volLabel = document.getElementById('volumeLabel');
+    if (volLabel) volLabel.innerHTML = this.volume + '%';
   },
 
   getVolume: function () {
@@ -141,14 +164,16 @@ var Player = {
 
   nextAspect: function () {
     this.aspect = (this.aspect + 1) % this.aspects.length;
-    if (this.object) {
-      if (this.aspect === 0) this.object.style.objectFit = 'contain';
-      else if (this.aspect === 1) this.object.style.objectFit = 'fill';
-      else if (this.aspect === 2) this.object.style.objectFit = 'cover';
-    }
     this.setArea(this.aspect);
-    var aspectNames = ['16:9 (Fit)', 'Fill', 'Crop'];
-    if (typeof App !== 'undefined') App.setStatus('Aspect: ' + aspectNames[this.aspect]);
+    var aspectNames = ['16:9 (Fit)', '4:3 (Center)', 'Kitöltés'];
+    if (typeof App !== 'undefined') {
+      App.setStatus('Képarány: ' + aspectNames[this.aspect]);
+    }
+  },
+
+  escape: function (value) {
+    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 };
 
@@ -164,15 +189,24 @@ var App = {
   currentPage: 1,
   totalPages: 1,
   currentChannel: null,
+
   focusIndex: 0,
   focusItems: [],
+  focusZone: 'grid', // 'grid' | 'top'
+  topFocusIndex: 0,
+  topFocusIds: ['favoritesFilter', 'allFilter', 'categoryFilter', 'languageFilter', 'refreshButton'],
+
+  quickTuneBuffer: '',
+  quickTuneTimer: null,
+  sleepTimer: null,
+  sleepMinutes: 0,
+  playerControlsTimer: null,
+  clockTimer: null,
+
   dragStartY: null,
   dragStartX: null,
   dragValue: null,
   longPressTimer: null,
-  sleepTimer: null,
-  sleepMinutes: 0,
-  playerControlsTimer: null,
 
   init: function () {
     Player.init();
@@ -182,23 +216,63 @@ var App = {
     this.ready();
     this.refreshChannels();
     this.loadEpg();
+    this.startClock();
   },
 
   ready: function () {
-    /* Without sendReadyEvent the TV will not route remote keys to us. */
     if (widgetAPI && widgetAPI.sendReadyEvent) {
       widgetAPI.sendReadyEvent();
+    }
+    this.registerKeys();
+  },
+
+  registerKeys: function () {
+    if (!pluginAPI || !pluginAPI.registKey || !tvKey) return;
+    var keys = [
+      tvKey.KEY_RED, tvKey.KEY_GREEN, tvKey.KEY_YELLOW, tvKey.KEY_BLUE,
+      tvKey.KEY_CH_UP, tvKey.KEY_CH_DOWN, tvKey.KEY_CHUP, tvKey.KEY_CHDOWN,
+      tvKey.KEY_PAGE_UP, tvKey.KEY_PAGE_DOWN,
+      tvKey.KEY_INFO, tvKey.KEY_INFOLINK,
+      tvKey.KEY_PLAY, tvKey.KEY_PAUSE, tvKey.KEY_STOP, tvKey.KEY_PLAY_PAUSE,
+      tvKey.KEY_0, tvKey.KEY_1, tvKey.KEY_2, tvKey.KEY_3, tvKey.KEY_4,
+      tvKey.KEY_5, tvKey.KEY_6, tvKey.KEY_7, tvKey.KEY_8, tvKey.KEY_9,
+      tvKey.KEY_VOL_UP, tvKey.KEY_VOL_DOWN, tvKey.KEY_MUTE
+    ];
+    for (var i = 0; i < keys.length; i++) {
+      try {
+        if (typeof keys[i] !== 'undefined') {
+          pluginAPI.registKey(keys[i]);
+        }
+      } catch (e) {}
     }
   },
 
   setStatus: function (message) {
     var status = document.getElementById('status');
-    if (status) status.innerHTML = message;
+    if (status) status.innerHTML = this.escape(message);
+  },
+
+  startClock: function () {
+    var self = this;
+    var update = function () {
+      var timeEl = document.getElementById('playerTime');
+      if (timeEl) {
+        var now = new Date();
+        timeEl.innerHTML = self.formatTime(now);
+      }
+    };
+    update();
+    if (this.clockTimer) clearInterval(this.clockTimer);
+    this.clockTimer = setInterval(update, 30000);
   },
 
   loadState: function () {
     var storedFavorites = localStorage.getItem('legacy_tv_favorites');
-    try { this.favorites = storedFavorites ? JSON.parse(storedFavorites) : []; } catch (e1) { this.favorites = []; }
+    try {
+      this.favorites = storedFavorites ? JSON.parse(storedFavorites) : [];
+    } catch (e1) {
+      this.favorites = [];
+    }
     localStorage.removeItem('legacy_tv_history');
   },
 
@@ -220,22 +294,22 @@ var App = {
       var self = this;
       this.sleepTimer = setTimeout(function () {
         self.closePlayer();
-        self.setStatus('Sleep timer closed the player.');
+        self.setStatus('Elalvási időzítő leállította a lejátszást.');
       }, this.sleepMinutes * 60 * 1000);
-      this.setStatus('Sleep timer: ' + this.sleepMinutes + ' minutes');
+      this.setStatus('Elalvási időzítő: ' + this.sleepMinutes + ' perc');
     } else {
-      this.setStatus('Sleep timer off');
+      this.setStatus('Elalvási időzítő kikapcsolva');
     }
   },
 
   refreshChannels: function () {
     var xhr = new XMLHttpRequest();
     var self = this;
-    this.setStatus('Loading channels...');
+    this.setStatus('Csatornák betöltése...');
     try {
       xhr.open('GET', 'channels.json?ts=' + new Date().getTime(), true);
     } catch (openError) {
-      this.setStatus('Channel request could not be opened.');
+      this.setStatus('Nem sikerült megnyitni a csatornakérést.');
       return;
     }
     xhr.onreadystatechange = function () {
@@ -245,26 +319,26 @@ var App = {
           self.channels = self.flattenChannels(JSON.parse(xhr.responseText));
           self.buildFilters();
           self.render();
-          self.setStatus(self.channels.length + ' channels');
+          self.setStatus(self.channels.length + ' csatorna betöltve');
         } catch (error) {
-          self.setStatus('Invalid channel JSON.');
+          self.setStatus('Érvénytelen channels.json.');
         }
       } else {
-        self.setStatus('Channel request failed: ' + xhr.status);
+        self.setStatus('Csatorna lekérési hiba: ' + xhr.status);
       }
     };
     try {
       xhr.send(null);
     } catch (sendError) {
-      this.setStatus('Channel request failed to send.');
+      this.setStatus('Hiba a kérés küldésekor.');
     }
   },
 
   flattenChannels: function (data) {
     var result = [];
     var categories = data && data.categories ? data.categories : [];
-    var i;
-    var j;
+    var i, j;
+    var globalIdx = 1;
     for (i = 0; i < categories.length; i++) {
       var category = categories[i];
       var list = category.channels || [];
@@ -272,6 +346,7 @@ var App = {
         var channel = list[j];
         channel.categoryId = category.id || 'other';
         channel.categoryName = category.name || 'Other';
+        channel.channelNumber = globalIdx++;
         result.push(channel);
       }
     }
@@ -288,14 +363,14 @@ var App = {
       categories[this.channels[i].categoryId] = this.channels[i].categoryName;
       languages[this.channels[i].language || 'unknown'] = true;
     }
-    categorySelect.innerHTML = '<option value="all">All categories</option>';
+    categorySelect.innerHTML = '<option value="all">Minden kategória</option>';
     for (var categoryId in categories) {
       if (categories.hasOwnProperty(categoryId)) {
         categorySelect.innerHTML += '<option value="' + this.escape(categoryId) + '">' +
           this.escape(categories[categoryId]) + '</option>';
       }
     }
-    languageSelect.innerHTML = '<option value="all">All languages</option>';
+    languageSelect.innerHTML = '<option value="all">Minden nyelv</option>';
     for (var language in languages) {
       if (languages.hasOwnProperty(language)) {
         languageSelect.innerHTML += '<option value="' + this.escape(language) + '">' +
@@ -307,10 +382,31 @@ var App = {
   setCategory: function (value) {
     this.category = value;
     this.currentPage = 1;
-    document.getElementById('allFilter').className = value === 'all' ? 'chip active' : 'chip';
-    document.getElementById('favoritesFilter').className = value === 'favorites' ? 'chip active' : 'chip';
-    this.currentPage = 1;
+    var allBtn = document.getElementById('allFilter');
+    var favBtn = document.getElementById('favoritesFilter');
+    var catSelect = document.getElementById('categoryFilter');
+    if (allBtn) allBtn.className = value === 'all' ? 'chip active' : 'chip';
+    if (favBtn) favBtn.className = value === 'favorites' ? 'chip active' : 'chip';
+    if (catSelect && value !== 'all' && value !== 'favorites') {
+      catSelect.value = value;
+    }
     this.render();
+  },
+
+  nextCategory: function () {
+    var categorySelect = document.getElementById('categoryFilter');
+    if (!categorySelect || !categorySelect.options.length) return;
+    var options = categorySelect.options;
+    var currentIdx = -1;
+    var i;
+    for (i = 0; i < options.length; i++) {
+      if (options[i].value === this.category) currentIdx = i;
+    }
+    var nextIdx = (currentIdx + 1) % options.length;
+    var nextVal = options[nextIdx].value;
+    categorySelect.selectedIndex = nextIdx;
+    this.setCategory(nextVal);
+    this.setStatus('Kategória: ' + options[nextIdx].text);
   },
 
   setLanguage: function (value) {
@@ -336,8 +432,7 @@ var App = {
   render: function () {
     var grid = document.getElementById('channelGrid');
     var list = this.filtered();
-    var pageStart;
-    var pageEnd;
+    var pageStart, pageEnd;
     var html = '';
     var i;
     this.visibleChannels = list;
@@ -345,38 +440,44 @@ var App = {
     if (this.currentPage > this.totalPages) this.currentPage = this.totalPages;
     pageStart = (this.currentPage - 1) * this.pageSize;
     pageEnd = Math.min(pageStart + this.pageSize, list.length);
+
     for (i = pageStart; i < pageEnd; i++) {
-      html += this.cardHtml(list[i], i);
+      html += this.cardHtml(list[i], i, list[i].channelNumber || (i + 1));
     }
     if (!html) {
       html = this.category === 'favorites' && !this.favorites.length ?
-        '<div class="empty">Nincsenek kedvencek. Válassz a kategóriák közül!</div>' :
-        '<div class="empty">No channels match this filter.</div>';
+        '<div class="empty">Nincsenek kedvencek. Válassz kategóriát a Zöld gombbal!</div>' :
+        '<div class="empty">Nincs a szűrőnek megfelelő csatorna.</div>';
     }
     grid.innerHTML = html;
     this.renderPagination();
     this.focusItems = this.findFocusableCards();
-    this.setFocus(0);
+    if (this.focusZone === 'grid') {
+      this.setFocus(this.focusIndex);
+    }
   },
 
-  cardHtml: function (channel, index) {
+  cardHtml: function (channel, index, channelNumber) {
     var program = this.currentProgram(channel);
     var progress = program ? this.progress(program) : 0;
     var logo = '';
     if (channel.logoUrl) {
       var encodedLogoUrl = encodeURIComponent(btoa(channel.logoUrl));
       var proxiedLogoUrl = AppConfig.logoProxyUrl + '/logo?b64=' + encodedLogoUrl;
-      logo = '<img src="' + this.escape(proxiedLogoUrl) + '" />';
+      logo = '<img src="' + this.escape(proxiedLogoUrl) + '" alt="" />';
     }
-    var favoriteText = this.isFavorite(channel.id) ? 'Favorite' : 'Add favorite';
+    var isFav = this.isFavorite(channel.id);
+    var favoriteText = isFav ? '&#9733;' : '&#9734;';
+    var favoriteClass = isFav ? 'favoriteButton isFav' : 'favoriteButton';
+
     return '<div class="channelCard" id="channel-' + index + '" tabindex="-1" data-index="' + index +
       '" data-id="' + this.escape(channel.id) + '">' +
-      '<button class="favoriteButton" data-id="' + this.escape(channel.id) + '">' +
+      '<span class="channelNumber">' + channelNumber + '</span>' +
+      '<button class="' + favoriteClass + '" data-id="' + this.escape(channel.id) + '">' +
       favoriteText + '</button>' + logo +
       '<div class="channelName">' + this.escape(channel.name) + '</div>' +
-      '<div class="channelMeta">' + this.escape(channel.categoryName || '') + ' / ' +
-      this.escape(channel.language || '') + '</div>' +
-      '<div class="program">' + (program ? this.escape(program.title) : 'No EPG data') + '</div>' +
+      '<div class="channelMeta">' + this.escape(channel.categoryName || '') + '</div>' +
+      '<div class="program">' + (program ? this.escape(program.title) : 'Nincs EPG adat') + '</div>' +
       '<div class="progress"><span style="width:' + progress + '%;"></span></div></div>';
   },
 
@@ -384,9 +485,9 @@ var App = {
     var previous = document.getElementById('previousPageButton');
     var next = document.getElementById('nextPageButton');
     var label = document.getElementById('pageLabel');
-    previous.disabled = this.currentPage <= 1;
-    next.disabled = this.currentPage >= this.totalPages;
-    label.innerHTML = 'Page ' + this.currentPage + ' / ' + this.totalPages;
+    if (previous) previous.disabled = this.currentPage <= 1;
+    if (next) next.disabled = this.currentPage >= this.totalPages;
+    if (label) label.innerHTML = 'Oldal ' + this.currentPage + ' / ' + this.totalPages;
   },
 
   previousPage: function () {
@@ -406,7 +507,9 @@ var App = {
     var result = [];
     var i;
     for (i = 0; i < cards.length; i++) {
-      if (cards[i].className.indexOf('channelCard') !== -1) result.push(cards[i]);
+      if (cards[i].className.indexOf('channelCard') !== -1) {
+        result.push(cards[i]);
+      }
     }
     return result;
   },
@@ -423,80 +526,327 @@ var App = {
     this.focusItems[index].className += ' focused';
   },
 
-  moveFocus: function (key) {
-    var columns = 5;
-    var next = this.focusIndex;
-    var lastIndex = this.focusItems.length - 1;
-    if (key === 'left') next--;
-    if (key === 'right') next++;
-    if (key === 'up') next -= columns;
-    if (key === 'down') next += columns;
+  clearGridFocus: function () {
+    for (var i = 0; i < this.focusItems.length; i++) {
+      this.focusItems[i].className = this.focusItems[i].className.replace(' focused', '');
+    }
+  },
 
-    if ((key === 'right' || key === 'down') &&
-        next > lastIndex && this.currentPage < this.totalPages) {
-      this.currentPage++;
-      this.render();
-      this.setFocus(0);
-      return;
+  updateTopFocus: function () {
+    for (var i = 0; i < this.topFocusIds.length; i++) {
+      var el = document.getElementById(this.topFocusIds[i]);
+      if (el) {
+        el.className = el.className.replace(' topFocused', '');
+        if (i === this.topFocusIndex) {
+          el.className += ' topFocused';
+          if (el.focus) el.focus();
+        }
+      }
     }
-    if ((key === 'left' || key === 'up') &&
-        next < 0 && this.currentPage > 1) {
-      this.currentPage--;
-      this.render();
-      this.setFocus(this.focusItems.length - 1);
-      return;
+  },
+
+  clearTopFocus: function () {
+    for (var i = 0; i < this.topFocusIds.length; i++) {
+      var el = document.getElementById(this.topFocusIds[i]);
+      if (el) {
+        el.className = el.className.replace(' topFocused', '');
+        if (el.blur) el.blur();
+      }
     }
-    this.setFocus(next);
+  },
+
+  isPlayerOpen: function () {
+    var playerView = document.getElementById('playerView');
+    return playerView && playerView.className.indexOf('hidden') === -1;
+  },
+
+  isGuideOpen: function () {
+    var guideModal = document.getElementById('guideModal');
+    return guideModal && guideModal.className.indexOf('hidden') === -1;
   },
 
   installKeyHandler: function () {
     var self = this;
     window.onkeydown = function (event) {
+      event = event || window.event;
       var code = event.keyCode;
       var key = self.keyName(code);
-      if (key && document.getElementById('playerView').className.indexOf('hidden') === -1) {
-        self.showPlayerControls();
-      }
-      if (key === 'left' || key === 'right' || key === 'up' || key === 'down') {
-        self.moveFocus(key);
-        self.prevent(event);
-        return false;
-      }
-      if (key === 'enter') {
-        var focused = document.querySelector('.focused');
-        if (!document.getElementById('playerView').className && focused) {
-          focused.click();
-        } else {
-          Player.toggle();
-        }
-        self.prevent(event);
-        return false;
-      }
-      if (key === 'return' || key === 'back') {
-        if (document.getElementById('guideModal').className.indexOf('hidden') === -1) {
+
+      if (self.isGuideOpen()) {
+        if (key === 'return' || key === 'back' || key === 'yellow') {
           self.closeGuide();
-        } else if (document.getElementById('playerView').className.indexOf('hidden') === -1) {
-          self.closePlayer();
-        } else if (widgetAPI && widgetAPI.sendReturnEvent) {
-          widgetAPI.sendReturnEvent();
+          self.prevent(event);
+          return false;
         }
-        self.prevent(event);
-        return false;
+        return true;
       }
-      return true;
+
+      if (self.isPlayerOpen()) {
+        return self.handlePlayerKey(key, event);
+      } else {
+        return self.handleGridKey(key, event);
+      }
     };
   },
 
-  findChannelTarget: function (target) {
-    while (target && target !== document) {
-      if (typeof target.className === 'string' &&
-          (target.className.indexOf('channelCard') !== -1 ||
-           target.className.indexOf('favoriteButton') !== -1)) {
-        return target;
-      }
-      target = target.parentNode;
+  handlePlayerKey: function (key, event) {
+    if (key === 'up' || key === 'ch_up') {
+      this.nextChannel();
+      this.prevent(event);
+      return false;
     }
-    return null;
+    if (key === 'down' || key === 'ch_down') {
+      this.previousChannel();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'left') {
+      this.changeVolume(-5);
+      this.showPlayerControls();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'right') {
+      this.changeVolume(5);
+      this.showPlayerControls();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'enter' || key === 'info') {
+      var controls = document.getElementById('playerControls');
+      if (controls && controls.className.indexOf('controlsHidden') === -1) {
+        this.hidePlayerControls();
+      } else {
+        this.showPlayerControls();
+      }
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'play' || key === 'pause' || key === 'play_pause') {
+      Player.toggle();
+      this.showPlayerControls();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'stop' || key === 'return' || key === 'back') {
+      this.closePlayer();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'red') {
+      if (this.currentChannel) {
+        this.toggleFavorite(this.currentChannel.id);
+        var isFav = this.isFavorite(this.currentChannel.id);
+        this.setStatus(isFav ? 'Hozzáadva a kedvencekhez' : 'Eltávolítva a kedvencekből');
+      }
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'blue') {
+      Player.nextAspect();
+      this.showPlayerControls();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'yellow') {
+      this.showGuide();
+      this.prevent(event);
+      return false;
+    }
+    if (key >= '0' && key <= '9') {
+      this.onNumberKey(key);
+      this.prevent(event);
+      return false;
+    }
+    return true;
+  },
+
+  handleGridKey: function (key, event) {
+    if (key === 'left' || key === 'right' || key === 'up' || key === 'down') {
+      this.moveFocus(key);
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'enter') {
+      if (this.focusZone === 'top') {
+        this.activateTopFocus();
+      } else {
+        var pageStart = (this.currentPage - 1) * this.pageSize;
+        var actualIndex = pageStart + this.focusIndex;
+        this.openChannel(actualIndex);
+      }
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'red') {
+      if (this.focusZone === 'grid') {
+        var pStart = (this.currentPage - 1) * this.pageSize;
+        var aIdx = pStart + this.focusIndex;
+        this.toggleFavoriteByIndex(aIdx);
+      } else {
+        this.setCategory(this.category === 'favorites' ? 'all' : 'favorites');
+      }
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'green') {
+      this.nextCategory();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'yellow') {
+      var pgStart = (this.currentPage - 1) * this.pageSize;
+      var curIdx = pgStart + this.focusIndex;
+      this.showGuideForIndex(curIdx);
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'blue') {
+      this.refreshChannels();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'ch_up') {
+      this.nextPage();
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'ch_down') {
+      this.previousPage();
+      this.prevent(event);
+      return false;
+    }
+    if (key >= '0' && key <= '9') {
+      this.onNumberKey(key);
+      this.prevent(event);
+      return false;
+    }
+    if (key === 'return' || key === 'back') {
+      if (widgetAPI && widgetAPI.sendReturnEvent) {
+        widgetAPI.sendReturnEvent();
+      }
+      this.prevent(event);
+      return false;
+    }
+    return true;
+  },
+
+  moveFocus: function (key) {
+    if (this.focusZone === 'top') {
+      if (key === 'left') {
+        if (this.topFocusIndex > 0) {
+          this.topFocusIndex--;
+          this.updateTopFocus();
+        }
+      } else if (key === 'right') {
+        if (this.topFocusIndex < this.topFocusIds.length - 1) {
+          this.topFocusIndex++;
+          this.updateTopFocus();
+        }
+      } else if (key === 'down') {
+        this.focusZone = 'grid';
+        this.clearTopFocus();
+        this.setFocus(this.focusIndex);
+      }
+      return;
+    }
+
+    var columns = 5;
+    var next = this.focusIndex;
+    var lastIndex = this.focusItems.length - 1;
+
+    if (key === 'left') next--;
+    if (key === 'right') next++;
+    if (key === 'down') next += columns;
+    if (key === 'up') {
+      if (next < columns) {
+        this.focusZone = 'top';
+        this.topFocusIndex = 0;
+        this.clearGridFocus();
+        this.updateTopFocus();
+        return;
+      }
+      next -= columns;
+    }
+
+    if ((key === 'right' || key === 'down') && next > lastIndex) {
+      if (this.currentPage < this.totalPages) {
+        this.currentPage++;
+        this.render();
+        this.setFocus(0);
+        return;
+      }
+    }
+    if (key === 'left' && next < 0) {
+      if (this.currentPage > 1) {
+        this.currentPage--;
+        this.render();
+        this.setFocus(this.focusItems.length - 1);
+        return;
+      }
+    }
+
+    this.setFocus(next);
+  },
+
+  activateTopFocus: function () {
+    var id = this.topFocusIds[this.topFocusIndex];
+    if (id === 'favoritesFilter') {
+      this.setCategory('favorites');
+    } else if (id === 'allFilter') {
+      this.setCategory('all');
+    } else if (id === 'categoryFilter') {
+      this.nextCategory();
+    } else if (id === 'languageFilter') {
+      var langSelect = document.getElementById('languageFilter');
+      if (langSelect && langSelect.options.length) {
+        var nextIdx = (langSelect.selectedIndex + 1) % langSelect.options.length;
+        langSelect.selectedIndex = nextIdx;
+        this.setLanguage(langSelect.options[nextIdx].value);
+      }
+    } else if (id === 'refreshButton') {
+      this.refreshChannels();
+    }
+  },
+
+  onNumberKey: function (digit) {
+    var self = this;
+    if (this.quickTuneTimer) {
+      clearTimeout(this.quickTuneTimer);
+    }
+    this.quickTuneBuffer += digit;
+    var el = document.getElementById('quickTuning');
+    if (el) {
+      el.innerHTML = 'CH ' + this.escape(this.quickTuneBuffer);
+      el.className = '';
+    }
+    this.quickTuneTimer = setTimeout(function () {
+      self.commitQuickTune();
+    }, 1200);
+  },
+
+  commitQuickTune: function () {
+    if (this.quickTuneTimer) {
+      clearTimeout(this.quickTuneTimer);
+      this.quickTuneTimer = null;
+    }
+    var el = document.getElementById('quickTuning');
+    if (el) el.className = 'hidden';
+    if (!this.quickTuneBuffer) return;
+    var targetNumber = parseInt(this.quickTuneBuffer, 10);
+    this.quickTuneBuffer = '';
+    if (isNaN(targetNumber) || targetNumber <= 0) return;
+
+    var list = this.channels;
+    var i;
+    for (i = 0; i < list.length; i++) {
+      if (list[i].channelNumber === targetNumber) {
+        this.visibleChannels = this.channels;
+        this.openChannel(i);
+        return;
+      }
+    }
+    this.setStatus('Nincs csatorna ezzel a számmal: ' + targetNumber);
   },
 
   keyName: function (code) {
@@ -507,13 +857,44 @@ var App = {
       if (code === tvKey.KEY_DOWN) return 'down';
       if (code === tvKey.KEY_ENTER) return 'enter';
       if (code === tvKey.KEY_RETURN) return 'return';
+      if (code === tvKey.KEY_RED) return 'red';
+      if (code === tvKey.KEY_GREEN) return 'green';
+      if (code === tvKey.KEY_YELLOW) return 'yellow';
+      if (code === tvKey.KEY_BLUE) return 'blue';
+      if (code === tvKey.KEY_CH_UP || code === tvKey.KEY_CHUP || code === tvKey.KEY_PAGE_UP) return 'ch_up';
+      if (code === tvKey.KEY_CH_DOWN || code === tvKey.KEY_CHDOWN || code === tvKey.KEY_PAGE_DOWN) return 'ch_down';
+      if (code === tvKey.KEY_INFO || code === tvKey.KEY_INFOLINK) return 'info';
+      if (code === tvKey.KEY_PLAY) return 'play';
+      if (code === tvKey.KEY_PAUSE) return 'pause';
+      if (code === tvKey.KEY_STOP) return 'stop';
+      if (code === tvKey.KEY_PLAY_PAUSE) return 'play_pause';
+      if (code === tvKey.KEY_0) return '0';
+      if (code === tvKey.KEY_1) return '1';
+      if (code === tvKey.KEY_2) return '2';
+      if (code === tvKey.KEY_3) return '3';
+      if (code === tvKey.KEY_4) return '4';
+      if (code === tvKey.KEY_5) return '5';
+      if (code === tvKey.KEY_6) return '6';
+      if (code === tvKey.KEY_7) return '7';
+      if (code === tvKey.KEY_8) return '8';
+      if (code === tvKey.KEY_9) return '9';
     }
+
     if (code === 37) return 'left';
     if (code === 38) return 'up';
     if (code === 39) return 'right';
     if (code === 40) return 'down';
     if (code === 13) return 'enter';
     if (code === 8 || code === 27) return 'return';
+    if (code === 33) return 'ch_up';
+    if (code === 34) return 'ch_down';
+    if (code === 73) return 'info';       // 'I'
+    if (code === 82) return 'red';        // 'R'
+    if (code === 71) return 'green';      // 'G'
+    if (code === 89) return 'yellow';     // 'Y'
+    if (code === 66) return 'blue';       // 'B'
+    if (code >= 48 && code <= 57) return String(code - 48);
+    if (code >= 96 && code <= 105) return String(code - 96);
     return '';
   },
 
@@ -521,21 +902,57 @@ var App = {
     var channel = this.visibleChannels[index];
     if (!channel) return;
     this.currentChannel = channel;
-    document.getElementById('playerChannelName').innerHTML = this.escape(channel.name);
-    document.getElementById('playerProgramName').innerHTML = this.currentProgram(channel) ?
-      this.escape(this.currentProgram(channel).title) : '';
-    document.getElementById('playerView').className = '';
-    this.hidePlayerControls();
+    this.updatePlayerOsd(channel);
+
+    var playerView = document.getElementById('playerView');
+    if (playerView) playerView.className = '';
+    this.showPlayerControls();
     Player.play(channel.streamUrl);
   },
 
-  openById: function (id) {
-    var i;
-    for (i = 0; i < this.channels.length; i++) {
-      if (this.channels[i].id === id) {
-        this.visibleChannels = this.channels;
-        this.openChannel(i);
-        return;
+  updatePlayerOsd: function (channel) {
+    var nameEl = document.getElementById('playerChannelName');
+    var numEl = document.getElementById('playerChannelNumber');
+    var logoEl = document.getElementById('playerChannelLogo');
+    var progEl = document.getElementById('playerProgramName');
+    var progTimeEl = document.getElementById('playerProgramTime');
+    var nextProgEl = document.getElementById('playerNextProgram');
+    var progBar = document.getElementById('playerProgressBar');
+
+    if (nameEl) nameEl.innerHTML = this.escape(channel.name);
+    if (numEl) numEl.innerHTML = channel.channelNumber ? '#' + channel.channelNumber : '';
+
+    if (logoEl) {
+      if (channel.logoUrl) {
+        var encodedLogoUrl = encodeURIComponent(btoa(channel.logoUrl));
+        logoEl.src = AppConfig.logoProxyUrl + '/logo?b64=' + encodedLogoUrl;
+        logoEl.className = '';
+      } else {
+        logoEl.className = 'hidden';
+      }
+    }
+
+    var currentProg = this.currentProgram(channel);
+    var nextProg = this.nextProgram(channel);
+
+    if (currentProg) {
+      if (progEl) progEl.innerHTML = this.escape(currentProg.title);
+      if (progTimeEl) {
+        progTimeEl.innerHTML = '(' + this.formatTime(currentProg.start) + ' - ' +
+          this.formatTime(currentProg.end) + ')';
+      }
+      if (progBar) progBar.style.width = this.progress(currentProg) + '%';
+    } else {
+      if (progEl) progEl.innerHTML = 'Nincs műsorinformáció';
+      if (progTimeEl) progTimeEl.innerHTML = '';
+      if (progBar) progBar.style.width = '0%';
+    }
+
+    if (nextProgEl) {
+      if (nextProg) {
+        nextProgEl.innerHTML = this.formatTime(nextProg.start) + ' ' + this.escape(nextProg.title);
+      } else {
+        nextProgEl.innerHTML = 'Nincs adat';
       }
     }
   },
@@ -543,7 +960,8 @@ var App = {
   closePlayer: function () {
     Player.stop();
     this.hidePlayerControls();
-    document.getElementById('playerView').className = 'hidden';
+    var playerView = document.getElementById('playerView');
+    if (playerView) playerView.className = 'hidden';
     this.currentChannel = null;
   },
 
@@ -575,19 +993,25 @@ var App = {
 
   toggleFavorite: function (id) {
     var position = this.favorites.indexOf(id);
-    if (position === -1) this.favorites.push(id);
-    else this.favorites.splice(position, 1);
+    if (position === -1) {
+      this.favorites.push(id);
+    } else {
+      this.favorites.splice(position, 1);
+    }
     this.saveState();
     this.render();
   },
 
-  isFavorite: function (id) { return this.favorites.indexOf(id) !== -1; },
+  isFavorite: function (id) {
+    return this.favorites.indexOf(id) !== -1;
+  },
 
   bindMouseHandlers: function () {
     var grid = document.getElementById('channelGrid');
     var shade = document.getElementById('playerShade');
     var playerView = document.getElementById('playerView');
     var self = this;
+
     grid.onclick = function (event) {
       event = event || window.event;
       var target = self.findChannelTarget(event.target || event.srcElement);
@@ -602,7 +1026,9 @@ var App = {
       event = event || window.event;
       var target = self.findChannelTarget(event.target || event.srcElement);
       if (target && target.className.indexOf('channelCard') !== -1) {
-        self.mouseFocus(parseInt(target.getAttribute('data-index'), 10));
+        var idx = parseInt(target.getAttribute('data-index'), 10);
+        var pageStart = (self.currentPage - 1) * self.pageSize;
+        self.mouseFocus(idx - pageStart);
       }
     };
     grid.oncontextmenu = function (event) {
@@ -638,8 +1064,6 @@ var App = {
       var change = (self.dragStartY - event.clientY) / 180;
       if (self.dragStartX >= 480) {
         Player.setVolume(self.dragValue * 100 + change * 100);
-      } else {
-        self.setBrightness(self.dragValue + change);
       }
     };
     shade.onmouseup = function () {
@@ -658,7 +1082,7 @@ var App = {
     var self = this;
     this.playerControlsTimer = setTimeout(function () {
       self.hidePlayerControls();
-    }, 3500);
+    }, 4000);
   },
 
   hidePlayerControls: function () {
@@ -670,20 +1094,12 @@ var App = {
     if (header) header.className = 'controlsHidden';
   },
 
-  setBrightness: function (value) {
-    var brightness = Math.max(0, Math.min(100, Math.round(value * 100)));
-    if (Player.object && Player.object.SetBrightness) {
-      try { Player.object.SetBrightness(brightness); } catch (e) {}
-      Player.setStatus('Brightness: ' + brightness + '%');
-    } else {
-      this.setStatus('Brightness API unavailable.');
-    }
-  },
-
   startLongPress: function (index) {
     var self = this;
     this.cancelLongPress();
-    this.longPressTimer = setTimeout(function () { self.showGuideForIndex(index); }, 700);
+    this.longPressTimer = setTimeout(function () {
+      self.showGuideForIndex(index);
+    }, 700);
   },
 
   cancelLongPress: function () {
@@ -704,22 +1120,32 @@ var App = {
     var list = channel ? this.programsFor(channel) : [];
     var html = '';
     var i;
-    if (!list.length) html = '<p>No guide data available for this channel.</p>';
+    if (!list.length) {
+      html = '<p>Ehhez a csatornához nincs elérhető műsorinformáció.</p>';
+    }
     for (i = 0; i < list.length; i++) {
       html += '<div class="guideEntry' + (this.isLive(list[i]) ? ' live' : '') + '">' +
         this.formatTime(list[i].start) + ' - ' + this.formatTime(list[i].end) +
         ' &nbsp; ' + this.escape(list[i].title) + '</div>';
     }
-    content.innerHTML = html;
-    document.getElementById('guideTitle').innerHTML = channel ?
-      this.escape(channel.name) + ' - Daily guide' : 'Daily guide';
-    document.getElementById('guideModal').className = 'modal';
+    if (content) content.innerHTML = html;
+    var guideTitle = document.getElementById('guideTitle');
+    if (guideTitle) {
+      guideTitle.innerHTML = channel ?
+        this.escape(channel.name) + ' - Műsorújság' : 'Műsorújság';
+    }
+    var guideModal = document.getElementById('guideModal');
+    if (guideModal) guideModal.className = 'modal';
   },
 
-  closeGuide: function () { document.getElementById('guideModal').className = 'modal hidden'; },
+  closeGuide: function () {
+    var guideModal = document.getElementById('guideModal');
+    if (guideModal) guideModal.className = 'modal hidden';
+  },
 
   loadEpg: function () {
     var urls = AppConfig.epgUrls;
+    if (!urls || !urls.length) return;
     var self = this;
     var trySource = function (position) {
       if (position >= urls.length) return;
@@ -733,7 +1159,11 @@ var App = {
       xhr.onreadystatechange = function () {
         if (xhr.readyState !== 4) return;
         if (xhr.status >= 200 && xhr.status < 300) {
-          self.parseEpg(xhr.responseText);
+          try {
+            self.parseEpg(xhr.responseText);
+          } catch (e) {
+            trySource(position + 1);
+          }
         } else {
           trySource(position + 1);
         }
@@ -748,6 +1178,7 @@ var App = {
   },
 
   parseEpg: function (xmlText) {
+    if (!xmlText) return;
     var documentXml = new DOMParser().parseFromString(xmlText, 'text/xml');
     var channelNodes = documentXml.getElementsByTagName('channel');
     var entries = documentXml.getElementsByTagName('programme');
@@ -760,19 +1191,33 @@ var App = {
         this.epgNames[channelKey] = displayNode.textContent;
       }
     }
+    var now = new Date().getTime();
+    var maxHorizon = now + (24 * 60 * 60 * 1000); // Legfeljebb 24 óra előre a memória kímélése végett
+
     for (i = 0; i < entries.length; i++) {
       var node = entries[i];
       var channelId = node.getAttribute('channel');
+      var start = this.parseXmltvDate(node.getAttribute('start'));
+      var end = this.parseXmltvDate(node.getAttribute('stop'));
+
+      // Túl régi vagy túl távoli elemek kihagyása a RAM kímélése érdekében
+      if (end.getTime() < now - (2 * 60 * 60 * 1000) || start.getTime() > maxHorizon) {
+        continue;
+      }
+
       var titleNode = node.getElementsByTagName('title')[0];
       var title = titleNode ? titleNode.textContent : '';
       var item = {
         channelId: channelId,
         title: title,
-        start: this.parseXmltvDate(node.getAttribute('start')),
-        end: this.parseXmltvDate(node.getAttribute('stop'))
+        start: start,
+        end: end
       };
       if (!this.epg[channelId]) this.epg[channelId] = [];
-      this.epg[channelId].push(item);
+      // Legfeljebb 12 műsor csatornánként (megelőzi az OOM összeomlást)
+      if (this.epg[channelId].length < 12) {
+        this.epg[channelId].push(item);
+      }
     }
     this.render();
   },
@@ -781,14 +1226,13 @@ var App = {
     if (!value) return new Date(0);
     var parts = value.replace(/^\s+|\s+$/g, '').split(' ');
     var digits = parts[0];
-    var date = new Date(
+    return new Date(
       parseInt(digits.substring(0, 4), 10),
       parseInt(digits.substring(4, 6), 10) - 1,
       parseInt(digits.substring(6, 8), 10),
       parseInt(digits.substring(8, 10), 10),
       parseInt(digits.substring(10, 12), 10)
     );
-    return date;
   },
 
   currentProgram: function (channel) {
@@ -796,7 +1240,21 @@ var App = {
     var now = new Date().getTime();
     var i;
     for (i = 0; i < list.length; i++) {
-      if (list[i].start.getTime() <= now && list[i].end.getTime() > now) return list[i];
+      if (list[i].start.getTime() <= now && list[i].end.getTime() > now) {
+        return list[i];
+      }
+    }
+    return null;
+  },
+
+  nextProgram: function (channel) {
+    var list = this.programsFor(channel);
+    var now = new Date().getTime();
+    var i;
+    for (i = 0; i < list.length; i++) {
+      if (list[i].start.getTime() > now) {
+        return list[i];
+      }
     }
     return null;
   },
@@ -836,19 +1294,36 @@ var App = {
     return null;
   },
 
+  findChannelTarget: function (target) {
+    while (target && target !== document) {
+      if (typeof target.className === 'string' &&
+          (target.className.indexOf('channelCard') !== -1 ||
+           target.className.indexOf('favoriteButton') !== -1)) {
+        return target;
+      }
+      target = target.parentNode;
+    }
+    return null;
+  },
+
   mouseFocus: function (index) { this.setFocus(index); },
+
   prevent: function (event) {
     if (event && event.preventDefault) event.preventDefault();
     if (event) event.returnValue = false;
   },
+
   formatTime: function (date) {
+    if (!date) return '';
     var h = date.getHours();
     var m = date.getMinutes();
     return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
   },
+
   normalizeName: function (value) {
     return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
   },
+
   escape: function (value) {
     return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
