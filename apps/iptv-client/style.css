@@ -405,17 +405,48 @@ button:disabled {
 .modalClose { float: right; }
 .modalPanel h2 { color: #63d8df; margin-top: 0; font-size: 20px; }
 #guideContent {
+  position: relative;
   height: 360px;
   overflow-y: auto;
   margin-top: 10px;
+  padding-right: 4px;
+}
+#guideContent::-webkit-scrollbar {
+  width: 6px;
+}
+#guideContent::-webkit-scrollbar-track {
+  background: #0f1922;
+}
+#guideContent::-webkit-scrollbar-thumb {
+  background: #25475a;
+  border-radius: 3px;
 }
 .guideEntry {
-  padding: 7px 10px;
+  padding: 8px 12px;
   border-bottom: 1px solid #243947;
   color: #d7e8eb;
   font-size: 13px;
+  cursor: pointer;
+  -webkit-transition: background 0.15s ease;
+  transition: background 0.15s ease;
 }
-.guideEntry.live { background: #1d6470; }
+.guideEntry.live {
+  background: #194f5b;
+  border-left: 4px solid #63d8df;
+}
+.guideEntry.current {
+  background: #173847;
+  border-left: 4px solid #3ca5b5;
+}
+.guideEntry.focused {
+  background: #25475a !important;
+  outline: 2px solid #63d8df;
+  color: #ffffff;
+}
+.guideEntry.live.focused {
+  background: #1f6675 !important;
+  outline: 2px solid #63d8df;
+}
 
 /* 3D Carousel View for Favorites (optimized for Orsay 960x540 viewport) */
 #carouselContainer {
