@@ -1,10 +1,9 @@
-{
-  "widgetname": "Legacy TV",
-  "widgetid": "legacy.tv.app",
-  "version": "1.0.1",
-  "description": "Lightweight Samsung Orsay live TV widget",
-  "icon": "icon.png",
-  "width": 960,
-  "height": 540,
-  "entry": "index.html"
-}
+# Application Size Setting
+Application Size = 960x540
+
+# Screen Setting
+Screen Number = 1
+Screen Resolution = 960x540
+
+# Alpha Blending Setting
+Use Alpha Blending? = Yes

@@ -128,6 +128,14 @@ def prepare_server_root(server_ip: str, port: int) -> Path:
     if not icon_src.is_file():
         raise FileNotFoundError(f"Widget icon does not exist: {icon_src}")
     shutil.copy2(icon_src, SERVER_ROOT / "icon.png")
+
+    icon_dir = WIDGET_DIR / "icon"
+    if icon_dir.is_dir():
+        server_icon_dir = SERVER_ROOT / "icon"
+        server_icon_dir.mkdir(parents=True, exist_ok=True)
+        for icon_file in icon_dir.glob("*.png"):
+            shutil.copy2(icon_file, server_icon_dir / icon_file.name)
+            shutil.copy2(icon_file, SERVER_ROOT / icon_file.name)
     return archive_path
 
 
