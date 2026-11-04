@@ -1,6 +1,8 @@
 import subprocess
 import base64
 import hashlib
+import os
+import shutil
 from pathlib import Path
 from flask import Flask, request, Response
 import urllib.request
@@ -9,6 +11,15 @@ app = Flask(__name__)
 
 CACHE_DIR = Path(__file__).resolve().parent / "cache" / "logos"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def get_ffmpeg_binary():
+    """Detect ffmpeg binary across Linux/macOS and Windows environments."""
+    local_exe = Path(__file__).resolve().parent / "ffmpeg.exe"
+    if os.name == "nt" and local_exe.is_file():
+        return str(local_exe)
+    return shutil.which("ffmpeg") or "ffmpeg"
+
 
 @app.route('/stream.ts')
 def stream():
@@ -24,7 +35,9 @@ def stream():
     print(f"Splicing and proxying: {url}")
 
     ffmpeg_cmd = [
-        'ffmpeg.exe',
+        get_ffmpeg_binary(),
+        '-hide_banner',
+        '-loglevel', 'error',  
         '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         '-i', url,
         '-c:v', 'copy',
@@ -36,15 +49,18 @@ def stream():
     ]
 
     def generate():
-        process = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE)
+
+        process = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         try:
             while True:
-                data = process.stdout.read(8192)
+
+                data = process.stdout.read(65536)
                 if not data:
                     break
                 yield data
         finally:
             process.terminate()
+            process.wait()
 
     response = Response(generate(), mimetype='video/MP2T', direct_passthrough=True)
     response.headers['Content-Disposition'] = 'inline; filename="stream.ts"'
@@ -114,4 +130,5 @@ def proxy_logo():
         return fail_response
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=7833)
+    port = int(os.environ.get("SERVER_PORT", 7833))
+    app.run(host='0.0.0.0', port=port)
