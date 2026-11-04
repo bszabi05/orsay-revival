@@ -234,6 +234,7 @@ var App = {
   favorites: [],
   epg: {},
   epgNames: {},
+  epgSourceMap: {},
   category: 'favorites',
   language: 'all',
   pageSize: 15,
@@ -361,7 +362,7 @@ var App = {
       97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
       110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122,
       123,
-      8, 13, 27, 32, 33, 34, 37, 38, 39, 40,
+      8, 13, 27, 32, 33, 34, 37, 38, 39, 40, 45,
       107, 109, 173, 174, 175, 187, 189
     ];
     for (var i = 0; i < customKeys.length; i++) {
@@ -444,6 +445,7 @@ var App = {
           self.buildFilters();
           self.render();
           self.setStatus(self.channels.length + ' channels loaded');
+          self.loadEpg(true);
         } catch (error) {
           self.setStatus('Invalid channels.json.');
         }
@@ -860,7 +862,7 @@ var App = {
       lastHandledKey = key;
 
       if (self.isGuideOpen()) {
-        if (key === 'return' || key === 'back' || key === 'yellow') {
+        if (key === 'return' || key === 'back' || key === 'yellow' || key === 'guide' || (self.isPlayerOpen() && key === 'green')) {
           self.closeGuide();
           self.prevent(event);
           return false;
@@ -949,7 +951,7 @@ var App = {
       this.prevent(event);
       return false;
     }
-    if (key === 'yellow') {
+    if (key === 'yellow' || key === 'guide' || key === 'green') {
       this.showGuide();
       this.prevent(event);
       return false;
@@ -1053,7 +1055,7 @@ var App = {
       this.prevent(event);
       return false;
     }
-    if (key === 'yellow') {
+    if (key === 'yellow' || key === 'guide') {
       if (this.category === 'favorites') {
         var curFavsGuide = this.getFavoritesChannels();
         if (curFavsGuide.length && curFavsGuide[this.carouselIndex]) {
@@ -1279,6 +1281,9 @@ var App = {
     if (keyChar === 'y' || keyChar === 'z' || keyChar === 'f3') return 'yellow';
     if (code === 89 || code === 90 || (!isKeyPress && code === 114) || (isKeyPress && (code === 121 || code === 122))) return 'yellow';
 
+    // 5b. Guide / EPG: 'Insert' key (45) or TV Remote Guide/EPG
+    if (keyChar === 'insert' || keyChar === 'guide' || code === 45) return 'guide';
+
     // 6. Blue button / 'B' / F4 (Refresh channels / Aspect ratio)
     if (keyChar === 'b' || keyChar === 'f4') return 'blue';
     if (code === 66 || (!isKeyPress && code === 115) || (isKeyPress && code === 98)) return 'blue';
@@ -1330,6 +1335,7 @@ var App = {
       if (code === tvKey.KEY_CH_UP || code === tvKey.KEY_CHUP || code === tvKey.KEY_PAGE_UP) return 'ch_up';
       if (code === tvKey.KEY_CH_DOWN || code === tvKey.KEY_CHDOWN || code === tvKey.KEY_PAGE_DOWN) return 'ch_down';
       if (code === tvKey.KEY_INFO || code === tvKey.KEY_INFOLINK) return 'info';
+      if (code === tvKey.KEY_GUIDE || (tvKey.KEY_EPG && code === tvKey.KEY_EPG)) return 'guide';
       if (code === tvKey.KEY_PLAY) return 'play';
       if (code === tvKey.KEY_PAUSE) return 'pause';
       if (code === tvKey.KEY_STOP) return 'stop';
@@ -1683,9 +1689,11 @@ var App = {
       html = '<p>No guide data available for this channel.</p>';
     }
     for (i = 0; i < list.length; i++) {
-      html += '<div class="guideEntry' + (this.isLive(list[i]) ? ' live' : '') + '">' +
-        this.formatTime(list[i].start) + ' - ' + this.formatTime(list[i].end) +
-        ' &nbsp; ' + this.escape(list[i].title) + '</div>';
+      var item = list[i];
+      var descHtml = item.desc ? '<div class="guideDesc" style="font-size:11px;color:#8fa5b0;margin-top:2px;line-height:14px;">' + this.escape(item.desc) + '</div>' : '';
+      html += '<div class="guideEntry' + (this.isLive(item) ? ' live' : '') + '">' +
+        '<strong>' + this.formatTime(item.start) + ' - ' + this.formatTime(item.end) + '</strong>' +
+        ' &nbsp; ' + this.escape(item.title) + descHtml + '</div>';
     }
     if (content) content.innerHTML = html;
     var guideTitle = document.getElementById('guideTitle');
@@ -1702,96 +1710,315 @@ var App = {
     if (guideModal) guideModal.className = 'modal hidden';
   },
 
-  loadEpg: function () {
-    var urls = AppConfig.epgUrls;
-    if (!urls || !urls.length) return;
-    var self = this;
-    var trySource = function (position) {
-      if (position >= urls.length) return;
-      var xhr = new XMLHttpRequest();
-      try {
-        xhr.open('GET', urls[position], true);
-      } catch (openError) {
-        trySource(position + 1);
-        return;
+  getEpgSources: function () {
+    var sources = [];
+    if (AppConfig.primaryEpgUrl) {
+      sources.push({ url: AppConfig.primaryEpgUrl, isPrimary: true, priority: 1 });
+    }
+    if (AppConfig.backupEpgUrls && AppConfig.backupEpgUrls.length) {
+      for (var i = 0; i < AppConfig.backupEpgUrls.length; i++) {
+        sources.push({ url: AppConfig.backupEpgUrls[i], isPrimary: false, priority: i + 2 });
       }
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState !== 4) return;
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            self.parseEpg(xhr.responseText);
-          } catch (e) {
-            trySource(position + 1);
-          }
-        } else {
-          trySource(position + 1);
-        }
-      };
-      try {
-        xhr.send(null);
-      } catch (sendError) {
-        trySource(position + 1);
+    }
+    if (!sources.length && AppConfig.epgUrls && AppConfig.epgUrls.length) {
+      for (var j = 0; j < AppConfig.epgUrls.length; j++) {
+        sources.push({ url: AppConfig.epgUrls[j], isPrimary: j === 0, priority: j + 1 });
       }
-    };
-    trySource(0);
+    }
+    return sources;
   },
 
-  parseEpg: function (xmlText) {
+  reviveDates: function (epg) {
+    if (!epg) return {};
+    for (var key in epg) {
+      if (epg.hasOwnProperty(key)) {
+        var list = epg[key];
+        if (list && list.length) {
+          for (var i = 0; i < list.length; i++) {
+            if (list[i].start && !(list[i].start instanceof Date)) {
+              list[i].start = new Date(list[i].start);
+            }
+            if (list[i].end && !(list[i].end instanceof Date)) {
+              list[i].end = new Date(list[i].end);
+            }
+          }
+        }
+      }
+    }
+    return epg;
+  },
+
+  loadEpg: function (forceRefresh) {
+    var self = this;
+    var CACHE_KEY = 'legacy_tv_epg_cache';
+    var MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours cache
+    var now = new Date().getTime();
+
+    if (forceRefresh) {
+      self.epg = {};
+      self.epgNames = {};
+      self.epgSourceMap = {};
+    }
+
+    // 1. Try loading from 12-hour local cache if not forcing refresh
+    if (!forceRefresh) {
+      try {
+        var rawCache = localStorage.getItem(CACHE_KEY);
+        if (rawCache) {
+          var cacheObj = JSON.parse(rawCache);
+          if (cacheObj && cacheObj.timestamp && (now - cacheObj.timestamp < MAX_AGE_MS)) {
+            if (cacheObj.epg && cacheObj.epgNames) {
+              self.epg = self.reviveDates(cacheObj.epg);
+              self.epgNames = cacheObj.epgNames;
+              self.render();
+              return;
+            }
+          }
+        }
+      } catch (cacheReadError) {}
+    }
+
+    // 2. Fetch from online sources (Primary first, then Fallbacks)
+    var sources = this.getEpgSources();
+    if (!sources.length) return;
+
+    var anySuccess = false;
+
+    var onAllCompleted = function () {
+      if (anySuccess) {
+        // Save to 12h cache in localStorage
+        try {
+          var payload = {
+            timestamp: new Date().getTime(),
+            epg: self.epg,
+            epgNames: self.epgNames
+          };
+          localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+        } catch (cacheWriteErr) {}
+      } else {
+        // If all online sources failed, fallback to existing stale cache
+        try {
+          var staleRaw = localStorage.getItem(CACHE_KEY);
+          if (staleRaw) {
+            var staleObj = JSON.parse(staleRaw);
+            if (staleObj && staleObj.epg) {
+              self.epg = self.reviveDates(staleObj.epg);
+              self.epgNames = staleObj.epgNames || {};
+            }
+          }
+        } catch (staleErr) {}
+      }
+      self.render();
+    };
+
+    var fetchSource = function (sourceObj, callback) {
+      var xhr = new XMLHttpRequest();
+      var done = false;
+      var timeoutTimer = setTimeout(function () {
+        if (!done) {
+          done = true;
+          try { xhr.abort(); } catch (e) {}
+          callback(false);
+        }
+      }, 30000); // 30-second timeout per source
+
+      try {
+        xhr.open('GET', sourceObj.url, true);
+        if (xhr.overrideMimeType) {
+          xhr.overrideMimeType('text/xml; charset=utf-8');
+        }
+      } catch (openErr) {
+        clearTimeout(timeoutTimer);
+        callback(false);
+        return;
+      }
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4 || done) return;
+        done = true;
+        clearTimeout(timeoutTimer);
+        if (xhr.status >= 200 && xhr.status < 300 && xhr.responseText) {
+          try {
+            self.parseEpg(xhr.responseText, sourceObj.priority);
+            callback(true);
+          } catch (parseErr) {
+            callback(false);
+          }
+        } else {
+          callback(false);
+        }
+      };
+
+      try {
+        xhr.send(null);
+      } catch (sendErr) {
+        clearTimeout(timeoutTimer);
+        callback(false);
+      }
+    };
+
+    var fetchNext = function (index) {
+      if (index >= sources.length) {
+        onAllCompleted();
+        return;
+      }
+      fetchSource(sources[index], function (success) {
+        if (success) anySuccess = true;
+        fetchNext(index + 1);
+      });
+    };
+
+    fetchNext(0);
+  },
+
+  parseEpg: function (xmlText, priority) {
     if (!xmlText) return;
+    priority = priority || 1;
+
+    // Strip UTF-8 BOM if present
+    if (xmlText.charCodeAt(0) === 0xFEFF) {
+      xmlText = xmlText.substring(1);
+    }
+
     var documentXml = new DOMParser().parseFromString(xmlText, 'text/xml');
     var channelNodes = documentXml.getElementsByTagName('channel');
     var entries = documentXml.getElementsByTagName('programme');
     var i;
+
     for (i = 0; i < channelNodes.length; i++) {
       var channelNode = channelNodes[i];
       var channelKey = channelNode.getAttribute('id');
-      var displayNode = channelNode.getElementsByTagName('display-name')[0];
-      if (channelKey && displayNode) {
-        this.epgNames[channelKey] = displayNode.textContent;
+      var displayNodes = channelNode.getElementsByTagName('display-name');
+      if (channelKey && displayNodes.length) {
+        if (!this.epgNames[channelKey] || priority === 1) {
+          this.epgNames[channelKey] = [];
+        } else if (typeof this.epgNames[channelKey] === 'string') {
+          this.epgNames[channelKey] = [this.epgNames[channelKey]];
+        }
+        for (var dn = 0; dn < displayNodes.length; dn++) {
+          var nameText = displayNodes[dn].textContent || displayNodes[dn].text || '';
+          if (nameText) {
+            var exists = false;
+            for (var ex = 0; ex < this.epgNames[channelKey].length; ex++) {
+              if (this.epgNames[channelKey][ex] === nameText) {
+                exists = true;
+                break;
+              }
+            }
+            if (!exists) {
+              this.epgNames[channelKey].push(nameText);
+            }
+          }
+        }
       }
     }
+
     var now = new Date().getTime();
-    var maxHorizon = now + (24 * 60 * 60 * 1000); // Max 24 hours ahead to save memory
+    var minHorizon = now - (24 * 60 * 60 * 1000); // 1 day before
+    var maxHorizon = now + (48 * 60 * 60 * 1000); // 2 days ahead
 
     for (i = 0; i < entries.length; i++) {
       var node = entries[i];
       var channelId = node.getAttribute('channel');
+      if (!channelId) continue;
+
+      // Priority rule: if this channel was already populated by a higher-priority source, do not overwrite
+      if (this.epgSourceMap[channelId] && this.epgSourceMap[channelId] < priority) {
+        continue;
+      }
+
       var start = this.parseXmltvDate(node.getAttribute('start'));
       var end = this.parseXmltvDate(node.getAttribute('stop'));
 
-      // Discard entries that are too old or too far in the future
-      if (end.getTime() < now - (2 * 60 * 60 * 1000) || start.getTime() > maxHorizon) {
+      // Validate valid dates and start < end
+      if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
+        continue;
+      }
+
+      // Filter within viewing horizon
+      if (end.getTime() < minHorizon || start.getTime() > maxHorizon) {
         continue;
       }
 
       var titleNode = node.getElementsByTagName('title')[0];
-      var title = titleNode ? titleNode.textContent : '';
+      var title = titleNode ? (titleNode.textContent || titleNode.text || '') : '';
+      if (!title) continue;
+
+      var descNode = node.getElementsByTagName('desc')[0];
+      var desc = descNode ? (descNode.textContent || descNode.text || '') : '';
+
       var item = {
         channelId: channelId,
         title: title,
+        desc: desc,
         start: start,
         end: end
       };
-      if (!this.epg[channelId]) this.epg[channelId] = [];
-      // Keep at most 12 programs per channel to prevent OOM
-      if (this.epg[channelId].length < 12) {
-        this.epg[channelId].push(item);
+
+      if (!this.epg[channelId]) {
+        this.epg[channelId] = [];
+        this.epgSourceMap[channelId] = priority;
+      }
+
+      // Filter duplicates by start, end, and title
+      var isDuplicate = false;
+      var existing = this.epg[channelId];
+      for (var d = 0; d < existing.length; d++) {
+        if (existing[d].start.getTime() === start.getTime() &&
+            existing[d].end.getTime() === end.getTime() &&
+            existing[d].title === title) {
+          isDuplicate = true;
+          break;
+        }
+      }
+
+      if (!isDuplicate && existing.length < 16) {
+        existing.push(item);
       }
     }
-    this.render();
+
+    // Sort programs by start time
+    for (var chKey in this.epg) {
+      if (this.epg.hasOwnProperty(chKey)) {
+        this.epg[chKey].sort(function (a, b) {
+          return a.start.getTime() - b.start.getTime();
+        });
+      }
+    }
   },
 
   parseXmltvDate: function (value) {
     if (!value) return new Date(0);
-    var parts = value.replace(/^\s+|\s+$/g, '').split(' ');
+    var str = value.replace(/^\s+|\s+$/g, '');
+    var parts = str.split(' ');
     var digits = parts[0];
-    return new Date(
-      parseInt(digits.substring(0, 4), 10),
-      parseInt(digits.substring(4, 6), 10) - 1,
-      parseInt(digits.substring(6, 8), 10),
-      parseInt(digits.substring(8, 10), 10),
-      parseInt(digits.substring(10, 12), 10)
-    );
+    if (digits.length < 12) return new Date(0);
+
+    var year = parseInt(digits.substring(0, 4), 10);
+    var month = parseInt(digits.substring(4, 6), 10) - 1;
+    var day = parseInt(digits.substring(6, 8), 10);
+    var hour = parseInt(digits.substring(8, 10), 10);
+    var min = parseInt(digits.substring(10, 12), 10);
+    var sec = digits.length >= 14 ? parseInt(digits.substring(12, 14), 10) : 0;
+
+    var utcMs = Date.UTC(year, month, day, hour, min, sec);
+
+    // Process timezone offset (e.g. "+0200" or "-0500")
+    if (parts.length > 1 && parts[1]) {
+      var tz = parts[1];
+      var sign = tz.charAt(0);
+      if (sign === '+' || sign === '-') {
+        var tzHours = parseInt(tz.substring(1, 3), 10) || 0;
+        var tzMins = parseInt(tz.substring(3, 5), 10) || 0;
+        var offsetMs = (tzHours * 60 + tzMins) * 60 * 1000;
+        if (sign === '+') {
+          utcMs -= offsetMs;
+        } else {
+          utcMs += offsetMs;
+        }
+      }
+    }
+    return new Date(utcMs);
   },
 
   currentProgram: function (channel) {
@@ -1819,18 +2046,162 @@ var App = {
   },
 
   programsFor: function (channel) {
-    var list = this.epg[channel.id] || this.epg[channel.name] || [];
-    var normalizedChannelName = this.normalizeName(channel.name);
-    if (!list.length) {
-      for (var key in this.epgNames) {
-        if (this.epgNames.hasOwnProperty(key) &&
-            this.normalizeName(this.epgNames[key]) === normalizedChannelName) {
-          list = this.epg[key] || [];
-          break;
+    if (!channel) return [];
+
+    // 1. Exact ID match
+    if (channel.id && this.epg[channel.id] && this.epg[channel.id].length) {
+      return this.epg[channel.id];
+    }
+
+    // 2. Cleaned ID match (strip @SD, @HD suffixes)
+    var cleanId = channel.id ? channel.id.replace(/@.*$/, '') : '';
+    if (cleanId && this.epg[cleanId] && this.epg[cleanId].length) {
+      return this.epg[cleanId];
+    }
+
+    // 3. Stemmed ID match (strip .ro, .hu, .uk, .com, etc. domain extension)
+    var stemmedId = cleanId ? cleanId.replace(/\.[a-z]{2,4}$/i, '') : '';
+    if (stemmedId && this.epg[stemmedId] && this.epg[stemmedId].length) {
+      return this.epg[stemmedId];
+    }
+
+    // 4. Exact channel name match
+    if (channel.name && this.epg[channel.name] && this.epg[channel.name].length) {
+      return this.epg[channel.name];
+    }
+
+    // 5. Normalized exact match (comparing normalized names and IDs)
+    var normName = this.normalizeName(channel.name);
+    var normCleanId = cleanId ? this.normalizeName(cleanId) : '';
+    var normStemmedId = stemmedId ? this.normalizeName(stemmedId) : '';
+    var key;
+
+    for (key in this.epg) {
+      if (this.epg.hasOwnProperty(key)) {
+        var normKey = this.normalizeName(key);
+        var normKeyStem = this.normalizeName(key.replace(/\.[a-z]{2,4}$/i, ''));
+        if (normKey === normName || (normCleanId && normKey === normCleanId) || (normStemmedId && normKey === normStemmedId) ||
+            normKeyStem === normName || (normCleanId && normKeyStem === normCleanId)) {
+          if (this.epg[key] && this.epg[key].length) return this.epg[key];
         }
       }
     }
-    return list;
+
+    for (key in this.epgNames) {
+      if (this.epgNames.hasOwnProperty(key)) {
+        var names = this.epgNames[key];
+        var nameList = typeof names === 'string' ? [names] : (names || []);
+        for (var n = 0; n < nameList.length; n++) {
+          var normDisplay = this.normalizeName(nameList[n]);
+          if (normDisplay === normName || (normCleanId && normDisplay === normCleanId) || (normStemmedId && normDisplay === normStemmedId)) {
+            if (this.epg[key] && this.epg[key].length) return this.epg[key];
+          }
+        }
+      }
+    }
+
+    // 6. User-configured aliases from config.js (if any defined by user)
+    if (typeof AppConfig !== 'undefined' && AppConfig.channelAliases) {
+      var customAliases = AppConfig.channelAliases;
+      var aliasTargets = customAliases[channel.id] || customAliases[cleanId] || customAliases[normName] || [];
+      if (typeof aliasTargets === 'string') aliasTargets = [aliasTargets];
+
+      if (!aliasTargets.length) {
+        for (var cKey in customAliases) {
+          if (customAliases.hasOwnProperty(cKey)) {
+            var cList = customAliases[cKey];
+            var arr = typeof cList === 'string' ? [cList] : (cList || []);
+            var inGroup = (cKey === normName || cKey === cleanId);
+            if (!inGroup) {
+              for (var ci = 0; ci < arr.length; ci++) {
+                if (arr[ci] === normName || arr[ci] === cleanId) {
+                  inGroup = true;
+                  break;
+                }
+              }
+            }
+            if (inGroup) {
+              aliasTargets = arr.concat([cKey]);
+              break;
+            }
+          }
+        }
+      }
+
+      for (var at = 0; at < aliasTargets.length; at++) {
+        var targetKey = aliasTargets[at];
+        if (this.epg[targetKey] && this.epg[targetKey].length) return this.epg[targetKey];
+        var targetNorm = this.normalizeName(targetKey);
+        for (key in this.epg) {
+          if (this.epg.hasOwnProperty(key)) {
+            var normKeyAlias = this.normalizeName(key);
+            var normKeyStemAlias = this.normalizeName(key.replace(/\.[a-z]{2,4}$/i, ''));
+            if ((normKeyAlias === targetNorm || normKeyStemAlias === targetNorm) && this.epg[key].length) {
+              return this.epg[key];
+            }
+          }
+        }
+      }
+    }
+
+    // 7. Generic prefix and word-stem matching (e.g. 'rtlklub' <-> 'rtl', 'm4sport' <-> 'm4')
+    // Avoid conflicting numbered channels (e.g. 'm1' must not match 'm10')
+    var bestMatchKey = null;
+    var bestScore = 0;
+
+    for (key in this.epg) {
+      if (this.epg.hasOwnProperty(key)) {
+        var candKeys = [this.normalizeName(key), this.normalizeName(key.replace(/\.[a-z]{2,4}$/i, ''))];
+        if (this.epgNames[key]) {
+          var dNames = typeof this.epgNames[key] === 'string' ? [this.epgNames[key]] : (this.epgNames[key] || []);
+          for (var d = 0; d < dNames.length; d++) {
+            candKeys.push(this.normalizeName(dNames[d]));
+          }
+        }
+
+        var searchKeys = [normName];
+        if (normCleanId && normCleanId !== normName) searchKeys.push(normCleanId);
+        if (normStemmedId && normStemmedId !== normName) searchKeys.push(normStemmedId);
+
+        for (var sk = 0; sk < searchKeys.length; sk++) {
+          var sKey = searchKeys[sk];
+          if (!sKey || sKey.length < 2) continue;
+
+          for (var ck = 0; ck < candKeys.length; ck++) {
+            var cKey = candKeys[ck];
+            if (!cKey || cKey.length < 2) continue;
+
+            var matched = false;
+            var matchLen = 0;
+
+            if (sKey.indexOf(cKey) === 0) {
+              var rem = sKey.substring(cKey.length);
+              if (!/^[0-9]/.test(rem)) {
+                matched = true;
+                matchLen = cKey.length;
+              }
+            } else if (cKey.indexOf(sKey) === 0) {
+              var rem2 = cKey.substring(sKey.length);
+              if (!/^[0-9]/.test(rem2)) {
+                matched = true;
+                matchLen = sKey.length;
+              }
+            }
+
+            if (matched && matchLen > bestScore) {
+              bestScore = matchLen;
+              bestMatchKey = key;
+            }
+          }
+        }
+      }
+    }
+
+    if (bestMatchKey && this.epg[bestMatchKey] && this.epg[bestMatchKey].length) {
+      return this.epg[bestMatchKey];
+    }
+
+    return [];
   },
 
   isLive: function (program) {
@@ -1882,8 +2253,40 @@ var App = {
     return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
   },
 
+  removeAccents: function (str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/[áàâäãåăÁÀÂÄÃÅĂ]/g, 'a')
+      .replace(/[éèêëěÉÈÊËĚ]/g, 'e')
+      .replace(/[íìîïÍÌÎÏ]/g, 'i')
+      .replace(/[óòôöőõøÓÒÔÖŐÕØ]/g, 'o')
+      .replace(/[úùûüűůÚÙÛÜŰŮ]/g, 'u')
+      .replace(/[ýÿÝŸ]/g, 'y')
+      .replace(/[șşšśȘŞŠŚ]/g, 's')
+      .replace(/[țţťȚŢŤ]/g, 't')
+      .replace(/[çčćÇČĆ]/g, 'c')
+      .replace(/[žźżŽŹŻ]/g, 'z')
+      .replace(/[ñňńÑŇŃ]/g, 'n')
+      .replace(/[řŕŘŔ]/g, 'r')
+      .replace(/[đďĐĎ]/g, 'd');
+  },
+
   normalizeName: function (value) {
-    return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    if (!value) return '';
+    var s = String(value);
+    // 1. Remove parenthesized and bracketed content: e.g. (1080p), [Geo-blocked], (Backup)
+    s = s.replace(/\([^)]*\)/g, ' ').replace(/\[[^\]]*\]/g, ' ');
+    // 2. Remove accents and diacritics
+    s = this.removeAccents(s);
+    // 3. Lowercase
+    s = s.toLowerCase();
+    // 4. Strip universal broadcast terms with word boundaries
+    s = s.replace(/\b(hd|fhd|uhd|4k|8k|sd|tv|channel|live|stream)\b/g, ' ');
+    // 5. Remove non-alphanumeric characters
+    s = s.replace(/[^a-z0-9]+/g, '');
+    // 6. Strip trailing attached quality indicator after digits: e.g. "24hd" -> "24"
+    s = s.replace(/(\d+)(hd|fhd|uhd|4k|sd)$/, '$1');
+    return s;
   },
 
   escape: function (value) {

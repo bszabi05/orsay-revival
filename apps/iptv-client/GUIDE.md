@@ -23,7 +23,7 @@ The main screen features two primary browsing modes:
 | **Switch to 'Favorites' Tab** | Focus `Favorites` + `ENTER` | **`F`** key or focus `Favorites` + `Enter` | Click `Favorites` button |
 | **Toggle Favorite (Add / Remove)** | `RED` button | **`R`** or **`F1`** key | Click &#9733; star button |
 | **Cycle Channel Category** | `GREEN` button | **`G`** or **`F2`** key | Select from dropdown |
-| **Open Daily EPG Guide** | `YELLOW` button | **`Y`**, **`Z`** (QWERTZ), or **`F3`** key | Right-click channel card |
+| **Open Daily EPG Guide** | `YELLOW` or `GUIDE` button | **`Insert`**, **`Y`**, **`Z`** (QWERTZ), or **`F3`** key | Right-click channel card |
 | **Refresh Channel List** | `BLUE` button | **`B`** or **`F4`** key | Click `Refresh` button |
 | **Pagination (Grid View)** | `CH UP` / `CH DOWN` (or PageUp/Down) | `Page Up` / `Page Down` | Click Previous / Next page buttons |
 | **Quick Channel Tune (Direct Number)** | Number keys `0` - `9` | Number keys `0` - `9` (Row or Numpad) | - |
@@ -49,7 +49,7 @@ When a channel is launched, the video plays full-screen using MPEG-TS hardware d
 | **Pause / Resume** | `PLAY` / `PAUSE` | `P` or Media Play/Pause key | - |
 | **Cycle Aspect Ratio (16:9, 4:3, Fill)** | `BLUE` button | **`B`** or **`F4`** key | Click Aspect button in OSD |
 | **Toggle Favorite While Watching** | `RED` button | **`R`** or **`F1`** key | - |
-| **Open EPG Guide for Current Channel** | `YELLOW` button | **`Y`**, **`Z`** (QWERTZ), or **`F3`** key | Click EPG button in OSD |
+| **Open EPG Guide for Current Channel** | `YELLOW` or `GUIDE` button | **`G`**, **`Insert`**, **`Y`**, **`Z`** (QWERTZ), or **`F3`** key | Click EPG button in OSD |
 | **Hardware TV Volume Up** | `VOL +` | `Right` arrow, Media Vol+, or `+` | Vertical drag on right half of screen |
 | **Hardware TV Volume Down** | `VOL -` | `Left` arrow, Media Vol-, or `-` | Vertical drag on right half of screen |
 | **Toggle TV Mute** | `MUTE` | Media Mute key or **`M`** key | - |
@@ -68,8 +68,8 @@ When a channel is launched, the video plays full-screen using MPEG-TS hardware d
 The program guide window displays the schedule for the selected channel with program start/stop times and highlights the currently airing live show.
 
 - **To Close and Return:**
-  - On TV Remote: Press `RETURN`, `BACK`, or `YELLOW`.
-  - On USB Keyboard: Press `Backspace`, `Q`, `X`, or `Y`.
+  - On TV Remote: Press `RETURN`, `BACK`, `YELLOW`, or `GUIDE`.
+  - On USB Keyboard: Press `Backspace`, `Q`, `X`, `G`, `Insert`, or `Y`.
   - With Mouse: Click the [Close] button or anywhere outside the modal dialog.
 
 ---

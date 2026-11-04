@@ -1,7 +1,21 @@
 var AppConfig = {
-  epgUrls: [
+  // Primary EPG source (e.g. Romanian XMLTV)
+  primaryEpgUrl: 'https://www.open-epg.com/files/romania1.xml',
+  // Backup EPG sources (e.g. Hungarian XMLTV fallbacks)
+  backupEpgUrls: [
     'https://kizman.net/guide/guide.xml',
     'https://raw.githubusercontent.com/dobrosi/xmltv/refs/heads/main/channels.xml'
   ],
-  proxyUrl: 'http://192.168.1.247:5000/stream.ts?b64='
+  // Fallback array for backward compatibility
+  epgUrls: [
+    'https://www.open-epg.com/files/romania1.xml',
+    'https://kizman.net/guide/guide.xml',
+    'https://raw.githubusercontent.com/dobrosi/xmltv/refs/heads/main/channels.xml'
+  ],
+  // Optional custom channel alias mappings for non-standard EPG channels
+  // channelAliases: {
+  //   'custom_channel_name_or_id': ['epg_channel_id']
+  // },
+  proxyUrl: 'http://192.168.1.247:5000/stream.ts?b64=',
+  logoProxyUrl: 'http://192.168.1.247:5000'
 };
