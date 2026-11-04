@@ -627,6 +627,16 @@ var App = {
       logo = '<img class="carouselLogo" data-src="' + this.escape(proxiedLogoUrl) + '" alt="" onerror="this.style.display=\'none\';" />';
     }
     var chNum = channel.channelNumber || (index + 1);
+    var progTitle = 'No EPG data';
+    if (program && program.title) {
+      if (this.isLive(program)) {
+        progTitle = this.escape(program.title);
+      } else if (program.start && program.start.getTime() > new Date().getTime()) {
+        progTitle = this.formatTime(program.start) + ' ' + this.escape(program.title);
+      } else {
+        progTitle = this.escape(program.title);
+      }
+    }
 
     return '<div class="carouselCard" id="carousel-card-' + index + '" tabindex="0" data-index="' + index + '" data-id="' + this.escape(channel.id) + '">' +
       '<span class="carouselNumber">#' + chNum + '</span>' +
@@ -634,7 +644,7 @@ var App = {
       logo +
       '<div class="carouselName">' + this.escape(channel.name) + '</div>' +
       '<div class="carouselMeta">' + this.escape(channel.categoryName || 'Favorite') + '</div>' +
-      '<div class="carouselProgram">' + (program ? this.escape(program.title) : 'No EPG data') + '</div>' +
+      '<div class="carouselProgram">' + progTitle + '</div>' +
       '<div class="carouselProgress"><span style="width:' + progress + '%;"></span></div>' +
       '<div class="carouselPrompt">PRESS ENTER TO WATCH</div>' +
       '</div>';
@@ -728,6 +738,16 @@ var App = {
     var isFav = this.isFavorite(channel.id);
     var favoriteText = isFav ? '&#9733;' : '&#9734;';
     var favoriteClass = isFav ? 'favoriteButton isFav' : 'favoriteButton';
+    var progTitle = 'No EPG data';
+    if (program && program.title) {
+      if (this.isLive(program)) {
+        progTitle = this.escape(program.title);
+      } else if (program.start && program.start.getTime() > new Date().getTime()) {
+        progTitle = this.formatTime(program.start) + ' ' + this.escape(program.title);
+      } else {
+        progTitle = this.escape(program.title);
+      }
+    }
 
     return '<div class="channelCard" id="channel-' + index + '" tabindex="0" data-index="' + index +
       '" data-id="' + this.escape(channel.id) + '">' +
@@ -736,7 +756,7 @@ var App = {
       favoriteText + '</button>' + logo +
       '<div class="channelName">' + this.escape(channel.name) + '</div>' +
       '<div class="channelMeta">' + this.escape(channel.categoryName || '') + '</div>' +
-      '<div class="program">' + (program ? this.escape(program.title) : 'No EPG data') + '</div>' +
+      '<div class="program">' + progTitle + '</div>' +
       '<div class="progress"><span style="width:' + progress + '%;"></span></div></div>';
   },
 
@@ -1708,6 +1728,9 @@ var App = {
   closeGuide: function () {
     var guideModal = document.getElementById('guideModal');
     if (guideModal) guideModal.className = 'modal hidden';
+    if (!this.isPlayerOpen()) {
+      this.render();
+    }
   },
 
   getEpgSources: function () {
@@ -1840,6 +1863,7 @@ var App = {
         if (xhr.status >= 200 && xhr.status < 300 && xhr.responseText) {
           try {
             self.parseEpg(xhr.responseText, sourceObj.priority);
+            self.render();
             callback(true);
           } catch (parseErr) {
             callback(false);
@@ -2023,14 +2047,44 @@ var App = {
 
   currentProgram: function (channel) {
     var list = this.programsFor(channel);
+    if (!list || !list.length) return null;
+
     var now = new Date().getTime();
     var i;
+
+    // 1. Look for currently active program (live now)
     for (i = 0; i < list.length; i++) {
-      if (list[i].start.getTime() <= now && list[i].end.getTime() > now) {
+      if (list[i].start && list[i].end) {
+        var s = list[i].start.getTime();
+        var e = list[i].end.getTime();
+        if (s <= now && e > now) {
+          return list[i];
+        }
+      }
+    }
+
+    // 2. If no program is currently live, look for the next upcoming program
+    for (i = 0; i < list.length; i++) {
+      if (list[i].start && list[i].start.getTime() > now) {
         return list[i];
       }
     }
-    return null;
+
+    // 3. Fallback: if all programs are past (or TV clock is desynchronized),
+    // return the program closest to now so the card never says "No EPG data" when data exists
+    var bestItem = list[0];
+    var minDiff = list[0].start ? Math.abs(list[0].start.getTime() - now) : Infinity;
+    for (i = 1; i < list.length; i++) {
+      if (list[i].start) {
+        var diff = Math.abs(list[i].start.getTime() - now);
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestItem = list[i];
+        }
+      }
+    }
+
+    return bestItem;
   },
 
   nextProgram: function (channel) {
