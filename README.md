@@ -19,11 +19,11 @@ This repository is organized into four main pillars:
 ```text
 orsay-revival/
 ├── apps/                 # Native Orsay TV Clients
-│   ├── iptv-client/      # A lightweight HLS/m3u8 player
+│   ├── iptv-client/      # A lightweight HLS/m3u8 player (see GUIDE.md)
 │   ├── ...
 │
 ├── services/             # Backend Proxies & Bridges
-│   ├── iptv-proxy/       # Zero-overhead Flask/FFmpeg stream proxy
+│   ├── iptv-proxy/       # Modular Flask/FFmpeg stream & media proxy (see README.md)
 │   └── ...
 │
 ├── tools/                # Developer Tooling
@@ -33,3 +33,30 @@ orsay-revival/
     ├── UNLOCK_DEV.md     # How to enable Developer Mode & login
     ├── DEPLOYMENT.md     # How to push code to the TV via local network
     └── LIMITATIONS.md    # Known hardware and API constraints
+```
+
+## 🚀 Quick Start Guide
+
+### 1. Start the Backend Proxy
+The proxy remuxes streams into native MPEG-TS and caches channel logos with low RAM usage:
+```bash
+pip install -r services/iptv-proxy/requirements.txt
+python services/iptv-proxy/server.py
+```
+*(For detailed endpoint documentation and modular blueprint extension, see [services/iptv-proxy/README.md](services/iptv-proxy/README.md).)*
+
+### 2. Configure Client Settings
+Copy `apps/iptv-client/config.js.example` to `apps/iptv-client/config.js` (if not already done) and configure your proxy server's IP and port:
+```javascript
+var AppConfig = {
+  proxyUrl: 'http://<YOUR_PROXY_IP>:7833/stream.ts?b64=',
+  logoProxyUrl: 'http://<YOUR_PROXY_IP>:7833'
+};
+```
+
+### 3. Deploy to the TV
+Run the deployer on your developer machine:
+```bash
+python tools/orsay-deployer/build_and_serve.py
+```
+Follow [docs/UNLOCK_DEV.md](docs/UNLOCK_DEV.md) to log in as `develop`, and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) to sync the widget to your Samsung TV. For remote and keyboard controls, see [apps/iptv-client/GUIDE.md](apps/iptv-client/GUIDE.md).

@@ -4,7 +4,8 @@ Orsay OS does not support direct sideloading via USB drives. Applications (widge
 
 ## 1. Preparing the Developer PC
 1. Ensure both the TV and your developer PC are connected to the same local network (LAN/Wi-Fi).
-2. Run the deployment server from the repository root:
+2. Configure your client configuration in `apps/iptv-client/config.js` to point to your running proxy server IP (see `services/iptv-proxy/README.md`).
+3. Run the deployment server from the repository root:
    ```bash
    python tools/orsay-deployer/build_and_serve.py
    ```
