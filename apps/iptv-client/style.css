@@ -468,12 +468,12 @@ button:disabled {
   width: 260px;
   height: 300px;
   box-sizing: border-box;
-  padding: 16px 14px;
-  border-radius: 20px;
-  background: #14212c;
-  background: -webkit-linear-gradient(bottom right, #241c44, #12101f, #0c141d);
-  background: linear-gradient(to bottom right, #241c44, #12101f, #0c141d);
-  border: 1px solid #2d3b50;
+  padding: 14px 14px 16px;
+  border-radius: 18px;
+  background: #121a24;
+  background: -webkit-linear-gradient(top, #1c2737 0%, #101620 100%);
+  background: linear-gradient(to bottom, #1c2737 0%, #101620 100%);
+  border: 1px solid #27384c;
   text-align: center;
   cursor: pointer;
   opacity: 0;
@@ -489,7 +489,9 @@ button:disabled {
   opacity: 1;
   z-index: 10;
   border-color: #63d8df;
-  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.7), 0 0 16px rgba(99, 216, 223, 0.35);
+  background: -webkit-linear-gradient(top, #203144 0%, #121c29 100%);
+  background: linear-gradient(to bottom, #203144 0%, #121c29 100%);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.8), 0 0 20px rgba(99, 216, 223, 0.45);
   -webkit-transform: translate3d(0, 0, 0) scale(1) rotateY(0deg);
   transform: translate3d(0, 0, 0) scale(1) rotateY(0deg);
 }
@@ -526,36 +528,85 @@ button:disabled {
   transform: translate3d(420px, 0, -150px) scale(0.64) rotateY(-38deg);
 }
 
+/* Card Header (Number & Fav Star) */
+.carouselCard .carouselCardHeader {
+  height: 24px;
+  line-height: 24px;
+  position: relative;
+  text-align: left;
+}
+
 .carouselCard .carouselNumber {
-  position: absolute;
-  left: 12px;
-  top: 12px;
-  padding: 2px 6px;
-  background: #0b141c;
+  display: inline-block;
+  padding: 1px 7px;
+  background: #091119;
   border: 1px solid #283e4d;
   color: #63d8df;
   font-size: 11px;
   font-weight: bold;
-  border-radius: 3px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
 }
 
 .carouselCard .carouselFavBtn {
   position: absolute;
-  right: 12px;
-  top: 10px;
+  right: 0;
+  top: 0;
+  height: 24px;
+  line-height: 24px;
   background: transparent;
   border: none;
   color: #f1c40f;
-  font-size: 18px;
+  font-size: 19px;
   cursor: pointer;
-  padding: 2px;
+  padding: 0 2px;
+  outline: none;
+}
+
+/* Logo Container & Image - Anti-distortion styling */
+.carouselCard .carouselLogoWrap {
+  width: 146px;
+  height: 76px;
+  margin: 10px auto 10px;
+  background: #09121a;
+  background: rgba(9, 18, 26, 0.7);
+  border: 1px solid #233446;
+  border-radius: 12px;
+  padding: 6px 10px;
+  box-sizing: border-box;
+  text-align: center;
+  line-height: 62px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.carouselCard.focused .carouselLogoWrap {
+  border-color: rgba(99, 216, 223, 0.45);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5), 0 2px 10px rgba(99, 216, 223, 0.15);
 }
 
 .carouselCard .carouselLogo {
-  width: 90px;
-  height: 65px;
-  margin: 14px auto 8px;
-  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  display: inline-block;
+  vertical-align: middle;
+  object-fit: contain;
+}
+
+.carouselCard .carouselNoLogoText {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #5d8396;
+}
+
+/* Channel Info */
+.carouselCard .carouselInfo {
+  margin: 0 auto;
 }
 
 .carouselCard .carouselName {
@@ -563,41 +614,95 @@ button:disabled {
   font-weight: bold;
   color: #ffffff;
   height: 22px;
+  line-height: 22px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  letter-spacing: 0.2px;
 }
 
 .carouselCard .carouselMeta {
-  color: #7fa1b0;
-  font-size: 12px;
-  margin-top: 2px;
+  color: #6da2b3;
+  font-size: 11px;
+  height: 15px;
+  line-height: 15px;
+  margin-top: 1px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+}
+
+/* EPG Program Box */
+.carouselCard .carouselProgramBox {
+  margin-top: 8px;
+  background: #0a131b;
+  background: rgba(10, 19, 27, 0.7);
+  border: 1px solid #203142;
+  border-radius: 8px;
+  padding: 6px 10px 8px;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.carouselCard.focused .carouselProgramBox {
+  border-color: #29455a;
+  background: rgba(10, 21, 31, 0.9);
+}
+
+.carouselCard .carouselProgramTimeRow {
+  height: 16px;
+  line-height: 16px;
+  margin-bottom: 3px;
+  overflow: hidden;
+}
+
+.carouselCard .carouselProgramTime {
+  color: #63d8df;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.carouselCard .carouselLiveBadge {
+  float: right;
+  padding: 0 5px;
+  height: 14px;
+  line-height: 14px;
+  background: #e74c3c;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: bold;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  margin-top: 1px;
 }
 
 .carouselCard .carouselProgram {
   font-size: 12px;
-  color: #b9d5d9;
+  color: #d2e7eb;
   height: 32px;
-  margin-top: 6px;
-  overflow: hidden;
   line-height: 16px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .carouselCard .carouselProgress {
   height: 4px;
-  background: #203340;
+  background: #172430;
+  border-radius: 2px;
+  overflow: hidden;
   margin-top: 6px;
 }
 
 .carouselCard .carouselProgress span {
   display: block;
   height: 4px;
+  border-radius: 2px;
   background: #63d8df;
-}
-
-.carouselCard .carouselPrompt {
-  margin-top: 10px;
-  font-size: 11px;
-  color: #63d8df;
-  letter-spacing: 1px;
+  background: -webkit-linear-gradient(left, #3aa8b8, #63d8df);
+  background: linear-gradient(to right, #3aa8b8, #63d8df);
 }

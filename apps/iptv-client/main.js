@@ -634,29 +634,60 @@ var App = {
     var logo = '';
     if (channel.logoUrl) {
       var proxiedLogoUrl = this.getLogoUrl(channel.logoUrl);
-      logo = '<img class="carouselLogo" data-src="' + this.escape(proxiedLogoUrl) + '" alt="" onerror="this.style.display=\'none\';" />';
+      logo = '<div class="carouselLogoWrap">' +
+        '<img class="carouselLogo" data-src="' + this.escape(proxiedLogoUrl) + '" alt="" onerror="this.style.display=\'none\';" />' +
+        '</div>';
+    } else {
+      var initials = (channel.name || 'TV').replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase();
+      logo = '<div class="carouselLogoWrap noLogo">' +
+        '<span class="carouselNoLogoText">' + this.escape(initials || 'TV') + '</span>' +
+        '</div>';
     }
     var chNum = channel.channelNumber || (index + 1);
-    var progTitle = 'No EPG data';
-    if (program && program.title) {
-      if (this.isLive(program)) {
-        progTitle = this.escape(program.title);
-      } else if (program.start && program.start.getTime() > new Date().getTime()) {
-        progTitle = this.formatTime(program.start) + ' ' + this.escape(program.title);
-      } else {
-        progTitle = this.escape(program.title);
+
+    var hasEpg = !!(program && program.title);
+    var epgBoxHtml = '';
+
+    if (hasEpg) {
+      var progTitle = this.escape(program.title);
+      var timeStr = '';
+      if (program.start && program.end) {
+        timeStr = this.formatTime(program.start) + ' - ' + this.formatTime(program.end);
+      } else if (program.start) {
+        timeStr = this.formatTime(program.start);
       }
+
+      var liveTag = '';
+      if (this.isLive(program)) {
+        liveTag = '<span class="carouselLiveBadge">LIVE</span>';
+      }
+
+      var timeHtml = '';
+      if (timeStr) {
+        timeHtml = '<div class="carouselProgramTimeRow">' +
+          '<span class="carouselProgramTime">' + timeStr + '</span>' +
+          liveTag +
+          '</div>';
+      }
+
+      epgBoxHtml = '<div class="carouselProgramBox">' +
+        timeHtml +
+        '<div class="carouselProgram" title="' + progTitle + '">' + progTitle + '</div>' +
+        '<div class="carouselProgress"><span style="width:' + progress + '%;"></span></div>' +
+        '</div>';
     }
 
     return '<div class="carouselCard" id="carousel-card-' + index + '" tabindex="0" data-index="' + index + '" data-id="' + this.escape(channel.id) + '">' +
+      '<div class="carouselCardHeader">' +
       '<span class="carouselNumber">#' + chNum + '</span>' +
-      '<button class="carouselFavBtn" data-id="' + this.escape(channel.id) + '">&#9733;</button>' +
+      '<button class="carouselFavBtn" data-id="' + this.escape(channel.id) + '" title="Favorite">&#9733;</button>' +
+      '</div>' +
       logo +
-      '<div class="carouselName">' + this.escape(channel.name) + '</div>' +
+      '<div class="carouselInfo">' +
+      '<div class="carouselName" title="' + this.escape(channel.name) + '">' + this.escape(channel.name) + '</div>' +
       '<div class="carouselMeta">' + this.escape(channel.categoryName || 'Favorite') + '</div>' +
-      '<div class="carouselProgram">' + progTitle + '</div>' +
-      '<div class="carouselProgress"><span style="width:' + progress + '%;"></span></div>' +
-      '<div class="carouselPrompt">PRESS ENTER TO WATCH</div>' +
+      '</div>' +
+      epgBoxHtml +
       '</div>';
   },
 
@@ -747,7 +778,7 @@ var App = {
     var isFav = this.isFavorite(channel.id);
     var favoriteText = isFav ? '&#9733;' : '&#9734;';
     var favoriteClass = isFav ? 'favoriteButton isFav' : 'favoriteButton';
-    var progTitle = 'No EPG data';
+    var progTitle = '';
     if (program && program.title) {
       if (this.isLive(program)) {
         progTitle = this.escape(program.title);
@@ -1451,7 +1482,7 @@ var App = {
       }
       if (progBar) progBar.style.width = this.progress(currentProg) + '%';
     } else {
-      if (progEl) progEl.innerHTML = 'No program info';
+      if (progEl) progEl.innerHTML = '';
       if (progTimeEl) progTimeEl.innerHTML = '';
       if (progBar) progBar.style.width = '0%';
     }
@@ -1460,7 +1491,7 @@ var App = {
       if (nextProg) {
         nextProgEl.innerHTML = this.formatTime(nextProg.start) + ' ' + this.escape(nextProg.title);
       } else {
-        nextProgEl.innerHTML = 'No data';
+        nextProgEl.innerHTML = '';
       }
     }
   },
