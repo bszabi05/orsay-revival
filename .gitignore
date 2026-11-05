@@ -9,3 +9,4 @@ __pycache__/
 
 # Proxy logo disk cache
 services/iptv-proxy/cache/
+scratch/

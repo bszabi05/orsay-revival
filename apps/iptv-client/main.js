@@ -260,6 +260,7 @@ var App = {
   dragStartX: null,
   dragValue: null,
   longPressTimer: null,
+  guideIndex: -1,
 
   init: function () {
     Player.init();
@@ -617,36 +618,76 @@ var App = {
     this.updateCarouselClasses();
   },
 
+  getLogoUrl: function (url) {
+    if (!url || typeof AppConfig === 'undefined' || !AppConfig.logoProxyUrl) return url || '';
+    var encoded = encodeURIComponent(btoa(url));
+    var base = AppConfig.logoProxyUrl;
+    if (base.indexOf('/logo?b64=') !== -1) {
+      return base + encoded;
+    }
+    return base.replace(/\/+$/, '') + '/logo?b64=' + encoded;
+  },
+
   carouselCardHtml: function (channel, index) {
     var program = this.currentProgram(channel);
     var progress = program ? this.progress(program) : 0;
     var logo = '';
     if (channel.logoUrl) {
-      var encodedLogoUrl = encodeURIComponent(btoa(channel.logoUrl));
-      var proxiedLogoUrl = AppConfig.logoProxyUrl + '/logo?b64=' + encodedLogoUrl;
-      logo = '<img class="carouselLogo" data-src="' + this.escape(proxiedLogoUrl) + '" alt="" onerror="this.style.display=\'none\';" />';
+      var proxiedLogoUrl = this.getLogoUrl(channel.logoUrl);
+      logo = '<div class="carouselLogoWrap">' +
+        '<img class="carouselLogo" data-src="' + this.escape(proxiedLogoUrl) + '" alt="" onerror="this.style.display=\'none\';" />' +
+        '</div>';
+    } else {
+      var initials = (channel.name || 'TV').replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase();
+      logo = '<div class="carouselLogoWrap noLogo">' +
+        '<span class="carouselNoLogoText">' + this.escape(initials || 'TV') + '</span>' +
+        '</div>';
     }
     var chNum = channel.channelNumber || (index + 1);
-    var progTitle = 'No EPG data';
-    if (program && program.title) {
-      if (this.isLive(program)) {
-        progTitle = this.escape(program.title);
-      } else if (program.start && program.start.getTime() > new Date().getTime()) {
-        progTitle = this.formatTime(program.start) + ' ' + this.escape(program.title);
-      } else {
-        progTitle = this.escape(program.title);
+
+    var hasEpg = !!(program && program.title);
+    var epgBoxHtml = '';
+
+    if (hasEpg) {
+      var progTitle = this.escape(program.title);
+      var timeStr = '';
+      if (program.start && program.end) {
+        timeStr = this.formatTime(program.start) + ' - ' + this.formatTime(program.end);
+      } else if (program.start) {
+        timeStr = this.formatTime(program.start);
       }
+
+      var liveTag = '';
+      if (this.isLive(program)) {
+        liveTag = '<span class="carouselLiveBadge">LIVE</span>';
+      }
+
+      var timeHtml = '';
+      if (timeStr) {
+        timeHtml = '<div class="carouselProgramTimeRow">' +
+          '<span class="carouselProgramTime">' + timeStr + '</span>' +
+          liveTag +
+          '</div>';
+      }
+
+      epgBoxHtml = '<div class="carouselProgramBox">' +
+        timeHtml +
+        '<div class="carouselProgram" title="' + progTitle + '">' + progTitle + '</div>' +
+        '<div class="carouselProgress"><span style="width:' + progress + '%;"></span></div>' +
+        '</div>';
     }
 
     return '<div class="carouselCard" id="carousel-card-' + index + '" tabindex="0" data-index="' + index + '" data-id="' + this.escape(channel.id) + '">' +
+      '<div class="carouselCardHeader">' +
       '<span class="carouselNumber">#' + chNum + '</span>' +
-      '<button class="carouselFavBtn" data-id="' + this.escape(channel.id) + '">&#9733;</button>' +
+      '<button class="carouselFavBtn" data-id="' + this.escape(channel.id) + '" title="Favorite">&#9733;</button>' +
+      '</div>' +
       logo +
-      '<div class="carouselName">' + this.escape(channel.name) + '</div>' +
+      '<div class="carouselInfo">' +
+      '<div class="carouselName" title="' + this.escape(channel.name) + '">' + this.escape(channel.name) + '</div>' +
       '<div class="carouselMeta">' + this.escape(channel.categoryName || 'Favorite') + '</div>' +
-      '<div class="carouselProgram">' + progTitle + '</div>' +
-      '<div class="carouselProgress"><span style="width:' + progress + '%;"></span></div>' +
-      '<div class="carouselPrompt">PRESS ENTER TO WATCH</div>' +
+      '</div>' +
+      epgBoxHtml +
       '</div>';
   },
 
@@ -731,14 +772,13 @@ var App = {
     var progress = program ? this.progress(program) : 0;
     var logo = '';
     if (channel.logoUrl) {
-      var encodedLogoUrl = encodeURIComponent(btoa(channel.logoUrl));
-      var proxiedLogoUrl = AppConfig.logoProxyUrl + '/logo?b64=' + encodedLogoUrl;
+      var proxiedLogoUrl = this.getLogoUrl(channel.logoUrl);
       logo = '<img src="' + this.escape(proxiedLogoUrl) + '" alt="" onerror="this.style.display=\'none\';" />';
     }
     var isFav = this.isFavorite(channel.id);
     var favoriteText = isFav ? '&#9733;' : '&#9734;';
     var favoriteClass = isFav ? 'favoriteButton isFav' : 'favoriteButton';
-    var progTitle = 'No EPG data';
+    var progTitle = '';
     if (program && program.title) {
       if (this.isLive(program)) {
         progTitle = this.escape(program.title);
@@ -882,12 +922,18 @@ var App = {
       lastHandledKey = key;
 
       if (self.isGuideOpen()) {
-        if (key === 'return' || key === 'back' || key === 'yellow' || key === 'guide' || (self.isPlayerOpen() && key === 'green')) {
+        if (key === 'return' || key === 'back' || key === 'yellow' || key === 'guide' || key === 'green') {
           self.closeGuide();
           self.prevent(event);
           return false;
         }
-        return true;
+        if (key === 'up' || key === 'down' || key === 'ch_up' || key === 'ch_down' || key === 'pageup' || key === 'pagedown') {
+          self.handleGuideKey(key, event);
+          self.prevent(event);
+          return false;
+        }
+        self.prevent(event);
+        return false;
       }
 
       if (self.isPlayerOpen()) {
@@ -1419,14 +1465,7 @@ var App = {
 
     if (logoEl) {
       if (channel.logoUrl) {
-        var encodedLogoUrl = encodeURIComponent(btoa(channel.logoUrl));
-        logoEl.onerror = function () {
-          this.className = 'hidden';
-        };
-        logoEl.onload = function () {
-          this.className = '';
-        };
-        logoEl.src = AppConfig.logoProxyUrl + '/logo?b64=' + encodedLogoUrl;
+        logoEl.src = this.getLogoUrl(channel.logoUrl);
       } else {
         logoEl.className = 'hidden';
       }
@@ -1443,7 +1482,7 @@ var App = {
       }
       if (progBar) progBar.style.width = this.progress(currentProg) + '%';
     } else {
-      if (progEl) progEl.innerHTML = 'No program info';
+      if (progEl) progEl.innerHTML = '';
       if (progTimeEl) progTimeEl.innerHTML = '';
       if (progBar) progBar.style.width = '0%';
     }
@@ -1452,7 +1491,7 @@ var App = {
       if (nextProg) {
         nextProgEl.innerHTML = this.formatTime(nextProg.start) + ' ' + this.escape(nextProg.title);
       } else {
-        nextProgEl.innerHTML = 'No data';
+        nextProgEl.innerHTML = '';
       }
     }
   },
@@ -1655,6 +1694,41 @@ var App = {
       self.dragStartY = null;
       self.dragStartX = null;
     };
+
+    var guideContent = document.getElementById('guideContent');
+    if (guideContent) {
+      guideContent.onclick = function (e) {
+        e = e || window.event;
+        var target = e.target || e.srcElement;
+        while (target && target !== guideContent) {
+          if (target.className && target.className.indexOf('guideEntry') !== -1) {
+            var idx = parseInt(target.getAttribute('data-index'), 10);
+            if (!isNaN(idx)) {
+              var entries = guideContent.getElementsByClassName('guideEntry');
+              if (entries[self.guideIndex]) {
+                entries[self.guideIndex].className = entries[self.guideIndex].className.replace(/\s*\bfocused\b/g, '');
+              }
+              self.guideIndex = idx;
+              target.className += ' focused';
+              self.scrollGuideToCenter(idx);
+            }
+            break;
+          }
+          target = target.parentNode;
+        }
+      };
+    }
+
+    var guideModal = document.getElementById('guideModal');
+    if (guideModal) {
+      guideModal.onclick = function (e) {
+        e = e || window.event;
+        var target = e.target || e.srcElement;
+        if (target === guideModal) {
+          self.closeGuide();
+        }
+      };
+    }
   },
 
   showPlayerControls: function () {
@@ -1705,16 +1779,36 @@ var App = {
     var list = channel ? this.programsFor(channel) : [];
     var html = '';
     var i;
+    var current = this.currentProgram(channel);
+    var activeIdx = -1;
+
     if (!list.length) {
-      html = '<p>No guide data available for this channel.</p>';
+      html = '<p style="color:#8fa5b0;text-align:center;margin-top:60px;font-size:14px;">No guide data available for this channel.</p>';
+      this.guideIndex = -1;
+    } else {
+      for (i = 0; i < list.length; i++) {
+        var item = list[i];
+        if (this.isLive(item) || (current && current.start && item.start &&
+            current.start.getTime() === item.start.getTime() && current.title === item.title)) {
+          activeIdx = i;
+          break;
+        }
+      }
+      if (activeIdx === -1) activeIdx = 0;
+      this.guideIndex = activeIdx;
+
+      for (i = 0; i < list.length; i++) {
+        var progItem = list[i];
+        var isCur = (i === activeIdx);
+        var isLiveNow = this.isLive(progItem);
+        var liveClass = isLiveNow ? ' live' : (isCur ? ' current' : '');
+        var descHtml = progItem.desc ? '<div class="guideDesc" style="font-size:11px;color:#8fa5b0;margin-top:2px;line-height:14px;">' + this.escape(progItem.desc) + '</div>' : '';
+        html += '<div class="guideEntry' + liveClass + (isCur ? ' focused' : '') + '" id="guide-entry-' + i + '" data-index="' + i + '">' +
+          '<strong>' + this.formatTime(progItem.start) + ' - ' + this.formatTime(progItem.end) + '</strong>' +
+          ' &nbsp; ' + this.escape(progItem.title) + descHtml + '</div>';
+      }
     }
-    for (i = 0; i < list.length; i++) {
-      var item = list[i];
-      var descHtml = item.desc ? '<div class="guideDesc" style="font-size:11px;color:#8fa5b0;margin-top:2px;line-height:14px;">' + this.escape(item.desc) + '</div>' : '';
-      html += '<div class="guideEntry' + (this.isLive(item) ? ' live' : '') + '">' +
-        '<strong>' + this.formatTime(item.start) + ' - ' + this.formatTime(item.end) + '</strong>' +
-        ' &nbsp; ' + this.escape(item.title) + descHtml + '</div>';
-    }
+
     if (content) content.innerHTML = html;
     var guideTitle = document.getElementById('guideTitle');
     if (guideTitle) {
@@ -1723,11 +1817,75 @@ var App = {
     }
     var guideModal = document.getElementById('guideModal');
     if (guideModal) guideModal.className = 'modal';
+
+    var self = this;
+    self.scrollGuideToCenter(self.guideIndex);
+    setTimeout(function () {
+      self.scrollGuideToCenter(self.guideIndex);
+    }, 40);
+  },
+
+  scrollGuideToCenter: function (index) {
+    var content = document.getElementById('guideContent');
+    if (!content) return;
+    if (index < 0) {
+      content.scrollTop = 0;
+      return;
+    }
+    var entry = document.getElementById('guide-entry-' + index);
+    if (!entry) return;
+
+    var containerHeight = content.clientHeight || 360;
+    var entryTop = entry.offsetTop;
+    var entryHeight = entry.offsetHeight || 38;
+    var targetScrollTop = entryTop - (containerHeight / 2) + (entryHeight / 2);
+    content.scrollTop = Math.max(0, Math.round(targetScrollTop));
+  },
+
+  handleGuideKey: function (key, event) {
+    var content = document.getElementById('guideContent');
+    if (!content) return;
+
+    var entries = content.getElementsByClassName('guideEntry');
+    var total = entries.length;
+    if (total === 0) return;
+
+    var oldIndex = this.guideIndex;
+    var newIndex = oldIndex;
+
+    if (key === 'up') {
+      newIndex = Math.max(0, oldIndex - 1);
+    } else if (key === 'down') {
+      newIndex = Math.min(total - 1, oldIndex + 1);
+    } else if (key === 'ch_up' || key === 'pageup') {
+      newIndex = Math.max(0, oldIndex - 5);
+    } else if (key === 'ch_down' || key === 'pagedown') {
+      newIndex = Math.min(total - 1, oldIndex + 5);
+    }
+
+    if (newIndex !== oldIndex && entries[newIndex]) {
+      this.guideIndex = newIndex;
+
+      if (entries[oldIndex]) {
+        entries[oldIndex].className = entries[oldIndex].className.replace(/\s*\bfocused\b/g, '');
+      }
+      if (entries[newIndex].className.indexOf('focused') === -1) {
+        entries[newIndex].className += ' focused';
+      }
+
+      this.scrollGuideToCenter(newIndex);
+    } else {
+      if (key === 'up') content.scrollTop = Math.max(0, content.scrollTop - 50);
+      if (key === 'down') content.scrollTop = content.scrollTop + 50;
+      if (key === 'ch_up' || key === 'pageup') content.scrollTop = Math.max(0, content.scrollTop - 200);
+      if (key === 'ch_down' || key === 'pagedown') content.scrollTop = content.scrollTop + 200;
+    }
   },
 
   closeGuide: function () {
     var guideModal = document.getElementById('guideModal');
     if (guideModal) guideModal.className = 'modal hidden';
+    this.guideIndex = -1;
     if (!this.isPlayerOpen()) {
       this.render();
     }
@@ -1773,9 +1931,15 @@ var App = {
 
   loadEpg: function (forceRefresh) {
     var self = this;
-    var CACHE_KEY = 'legacy_tv_epg_cache';
+    var CACHE_KEY = 'legacy_tv_epg_cache_v3';
     var MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours cache
     var now = new Date().getTime();
+
+    // Clean up older cache versions to prevent quota exceeded errors in localStorage
+    try {
+      localStorage.removeItem('legacy_tv_epg_cache');
+      localStorage.removeItem('legacy_tv_epg_cache_v2');
+    } catch (ignoreErr) {}
 
     if (forceRefresh) {
       self.epg = {};
@@ -1904,100 +2068,200 @@ var App = {
       xmlText = xmlText.substring(1);
     }
 
-    var documentXml = new DOMParser().parseFromString(xmlText, 'text/xml');
-    var channelNodes = documentXml.getElementsByTagName('channel');
-    var entries = documentXml.getElementsByTagName('programme');
+    var now = new Date().getTime();
+    var minHorizon = now - (4 * 60 * 60 * 1000); // 4 hours before (keeps live/recent shows, avoids filling slots with dead past data)
+    var maxHorizon = now + (48 * 60 * 60 * 1000); // 2 days ahead
     var i;
+    var channelNodes = [];
+    var entries = [];
 
-    for (i = 0; i < channelNodes.length; i++) {
-      var channelNode = channelNodes[i];
-      var channelKey = channelNode.getAttribute('id');
-      var displayNodes = channelNode.getElementsByTagName('display-name');
-      if (channelKey && displayNodes.length) {
-        if (!this.epgNames[channelKey] || priority === 1) {
-          this.epgNames[channelKey] = [];
-        } else if (typeof this.epgNames[channelKey] === 'string') {
-          this.epgNames[channelKey] = [this.epgNames[channelKey]];
-        }
-        for (var dn = 0; dn < displayNodes.length; dn++) {
-          var nameText = displayNodes[dn].textContent || displayNodes[dn].text || '';
-          if (nameText) {
-            var exists = false;
-            for (var ex = 0; ex < this.epgNames[channelKey].length; ex++) {
-              if (this.epgNames[channelKey][ex] === nameText) {
-                exists = true;
-                break;
+    try {
+      var documentXml = new DOMParser().parseFromString(xmlText, 'text/xml');
+      if (documentXml) {
+        channelNodes = documentXml.getElementsByTagName('channel') || [];
+        entries = documentXml.getElementsByTagName('programme') || [];
+      }
+    } catch (domErr) {
+      channelNodes = [];
+      entries = [];
+    }
+
+    if (entries.length > 0) {
+      for (i = 0; i < channelNodes.length; i++) {
+        var channelNode = channelNodes[i];
+        var channelKey = channelNode.getAttribute('id');
+        var displayNodes = channelNode.getElementsByTagName('display-name');
+        if (channelKey && displayNodes.length) {
+          if (!this.epgNames[channelKey] || priority === 1) {
+            this.epgNames[channelKey] = [];
+          } else if (typeof this.epgNames[channelKey] === 'string') {
+            this.epgNames[channelKey] = [this.epgNames[channelKey]];
+          }
+          for (var dn = 0; dn < displayNodes.length; dn++) {
+            var nameText = displayNodes[dn].textContent || displayNodes[dn].text || '';
+            if (nameText) {
+              var exists = false;
+              for (var ex = 0; ex < this.epgNames[channelKey].length; ex++) {
+                if (this.epgNames[channelKey][ex] === nameText) {
+                  exists = true;
+                  break;
+                }
               }
-            }
-            if (!exists) {
-              this.epgNames[channelKey].push(nameText);
+              if (!exists) {
+                this.epgNames[channelKey].push(nameText);
+              }
             }
           }
         }
       }
-    }
 
-    var now = new Date().getTime();
-    var minHorizon = now - (24 * 60 * 60 * 1000); // 1 day before
-    var maxHorizon = now + (48 * 60 * 60 * 1000); // 2 days ahead
+      for (i = 0; i < entries.length; i++) {
+        var node = entries[i];
+        var channelId = node.getAttribute('channel');
+        if (!channelId) continue;
 
-    for (i = 0; i < entries.length; i++) {
-      var node = entries[i];
-      var channelId = node.getAttribute('channel');
-      if (!channelId) continue;
+        // Priority rule: if this channel was already populated by a higher-priority source, do not overwrite
+        if (this.epgSourceMap[channelId] && this.epgSourceMap[channelId] < priority) {
+          continue;
+        }
 
-      // Priority rule: if this channel was already populated by a higher-priority source, do not overwrite
-      if (this.epgSourceMap[channelId] && this.epgSourceMap[channelId] < priority) {
-        continue;
+        var start = this.parseXmltvDate(node.getAttribute('start'));
+        var end = this.parseXmltvDate(node.getAttribute('stop'));
+
+        // Validate valid dates and start < end
+        if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
+          continue;
+        }
+
+        // Filter within viewing horizon
+        if (end.getTime() < minHorizon || start.getTime() > maxHorizon) {
+          continue;
+        }
+
+        var titleNode = node.getElementsByTagName('title')[0];
+        var title = titleNode ? (titleNode.textContent || titleNode.text || '') : '';
+        if (!title) continue;
+
+        var descNode = node.getElementsByTagName('desc')[0];
+        var desc = descNode ? (descNode.textContent || descNode.text || '') : '';
+
+        var item = {
+          channelId: channelId,
+          title: title,
+          desc: desc,
+          start: start,
+          end: end
+        };
+
+        if (!this.epg[channelId]) {
+          this.epg[channelId] = [];
+          this.epgSourceMap[channelId] = priority;
+        }
+
+        // Filter duplicates by start, end, and title
+        var isDuplicate = false;
+        var existing = this.epg[channelId];
+        for (var d = 0; d < existing.length; d++) {
+          if (existing[d].start.getTime() === start.getTime() &&
+              existing[d].end.getTime() === end.getTime() &&
+              existing[d].title === title) {
+            isDuplicate = true;
+            break;
+          }
+        }
+
+        if (!isDuplicate && existing.length < 48) {
+          existing.push(item);
+        }
       }
-
-      var start = this.parseXmltvDate(node.getAttribute('start'));
-      var end = this.parseXmltvDate(node.getAttribute('stop'));
-
-      // Validate valid dates and start < end
-      if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
-        continue;
-      }
-
-      // Filter within viewing horizon
-      if (end.getTime() < minHorizon || start.getTime() > maxHorizon) {
-        continue;
-      }
-
-      var titleNode = node.getElementsByTagName('title')[0];
-      var title = titleNode ? (titleNode.textContent || titleNode.text || '') : '';
-      if (!title) continue;
-
-      var descNode = node.getElementsByTagName('desc')[0];
-      var desc = descNode ? (descNode.textContent || descNode.text || '') : '';
-
-      var item = {
-        channelId: channelId,
-        title: title,
-        desc: desc,
-        start: start,
-        end: end
-      };
-
-      if (!this.epg[channelId]) {
-        this.epg[channelId] = [];
-        this.epgSourceMap[channelId] = priority;
-      }
-
-      // Filter duplicates by start, end, and title
-      var isDuplicate = false;
-      var existing = this.epg[channelId];
-      for (var d = 0; d < existing.length; d++) {
-        if (existing[d].start.getTime() === start.getTime() &&
-            existing[d].end.getTime() === end.getTime() &&
-            existing[d].title === title) {
-          isDuplicate = true;
-          break;
+    } else {
+      // Fallback: fast regex parser for older WebKit or XML parse errors
+      var chRegex = /<channel\s+id="([^"]+)">([\s\S]*?)<\/channel>/gi;
+      var chM;
+      while ((chM = chRegex.exec(xmlText)) !== null) {
+        var rChId = chM[1];
+        var rChInner = chM[2];
+        if (!this.epgNames[rChId] || priority === 1) {
+          this.epgNames[rChId] = [];
+        } else if (typeof this.epgNames[rChId] === 'string') {
+          this.epgNames[rChId] = [this.epgNames[rChId]];
+        }
+        var dnRegex = /<display-name[^>]*>([\s\S]*?)<\/display-name>/gi;
+        var dnM;
+        while ((dnM = dnRegex.exec(rChInner)) !== null) {
+          var rDName = (dnM[1] || '').replace(/^\s+|\s+$/g, '');
+          if (rDName) {
+            var rDExists = false;
+            for (var rde = 0; rde < this.epgNames[rChId].length; rde++) {
+              if (this.epgNames[rChId][rde] === rDName) {
+                rDExists = true;
+                break;
+              }
+            }
+            if (!rDExists) {
+              this.epgNames[rChId].push(rDName);
+            }
+          }
         }
       }
 
-      if (!isDuplicate && existing.length < 16) {
-        existing.push(item);
+      var progRegex = /<programme\s+([^>]+)>([\s\S]*?)<\/programme>/gi;
+      var chAttrRe = /channel="([^"]+)"/i;
+      var startAttrRe = /start="([^"]+)"/i;
+      var stopAttrRe = /stop="([^"]+)"/i;
+      var titleRe = /<title[^>]*>([\s\S]*?)<\/title>/i;
+      var descRe = /<desc[^>]*>([\s\S]*?)<\/desc>/i;
+      var pM;
+      while ((pM = progRegex.exec(xmlText)) !== null) {
+        var attrsStr = pM[1];
+        var pInner = pM[2];
+        var chAttrMatch = chAttrRe.exec(attrsStr);
+        if (!chAttrMatch) continue;
+        var pChId = chAttrMatch[1];
+        if (this.epgSourceMap[pChId] && this.epgSourceMap[pChId] < priority) continue;
+
+        var startAttrMatch = startAttrRe.exec(attrsStr);
+        var stopAttrMatch = stopAttrRe.exec(attrsStr);
+        if (!startAttrMatch || !stopAttrMatch) continue;
+
+        var pStart = this.parseXmltvDate(startAttrMatch[1]);
+        var pEnd = this.parseXmltvDate(stopAttrMatch[1]);
+        if (!pStart || !pEnd || isNaN(pStart.getTime()) || isNaN(pEnd.getTime()) || pEnd.getTime() <= pStart.getTime()) continue;
+        if (pEnd.getTime() < minHorizon || pStart.getTime() > maxHorizon) continue;
+
+        var tMatch = titleRe.exec(pInner);
+        var pTitle = tMatch ? (tMatch[1] || '').replace(/^\s+|\s+$/g, '') : '';
+        if (!pTitle) continue;
+
+        var dMatch = descRe.exec(pInner);
+        var pDesc = dMatch ? (dMatch[1] || '').replace(/^\s+|\s+$/g, '') : '';
+
+        var pItem = {
+          channelId: pChId,
+          title: pTitle,
+          desc: pDesc,
+          start: pStart,
+          end: pEnd
+        };
+
+        if (!this.epg[pChId]) {
+          this.epg[pChId] = [];
+          this.epgSourceMap[pChId] = priority;
+        }
+
+        var pExisting = this.epg[pChId];
+        var isDup = false;
+        for (var pd = 0; pd < pExisting.length; pd++) {
+          if (pExisting[pd].start.getTime() === pStart.getTime() &&
+              pExisting[pd].end.getTime() === pEnd.getTime() &&
+              pExisting[pd].title === pTitle) {
+            isDup = true;
+            break;
+          }
+        }
+        if (!isDup && pExisting.length < 48) {
+          pExisting.push(pItem);
+        }
       }
     }
 
@@ -2124,18 +2388,35 @@ var App = {
       return this.epg[channel.name];
     }
 
+    // 4b. Raw Alphanumeric ID match (space- and punctuation-insensitive ID match, e.g. "PROTV.ro" <-> "PRO TV.ro")
+    var rawCleanId = this.rawAlpha(cleanId);
+    var rawStemmedId = this.rawAlpha(stemmedId);
+    var key;
+
+    if (rawCleanId || rawStemmedId) {
+      for (key in this.epg) {
+        if (this.epg.hasOwnProperty(key)) {
+          var rawKey = this.rawAlpha(key);
+          var rawKeyStem = this.rawAlpha(key.replace(/\.[a-z]{2,4}$/i, ''));
+          if ((rawCleanId && (rawKey === rawCleanId || rawKeyStem === rawCleanId)) ||
+              (rawStemmedId && (rawKey === rawStemmedId || rawKeyStem === rawStemmedId))) {
+            if (this.epg[key] && this.epg[key].length) return this.epg[key];
+          }
+        }
+      }
+    }
+
     // 5. Normalized exact match (comparing normalized names and IDs)
     var normName = this.normalizeName(channel.name);
     var normCleanId = cleanId ? this.normalizeName(cleanId) : '';
     var normStemmedId = stemmedId ? this.normalizeName(stemmedId) : '';
-    var key;
 
     for (key in this.epg) {
       if (this.epg.hasOwnProperty(key)) {
         var normKey = this.normalizeName(key);
         var normKeyStem = this.normalizeName(key.replace(/\.[a-z]{2,4}$/i, ''));
         if (normKey === normName || (normCleanId && normKey === normCleanId) || (normStemmedId && normKey === normStemmedId) ||
-            normKeyStem === normName || (normCleanId && normKeyStem === normCleanId)) {
+            normKeyStem === normName || (normCleanId && normKeyStem === normCleanId) || (normStemmedId && normKeyStem === normStemmedId)) {
           if (this.epg[key] && this.epg[key].length) return this.epg[key];
         }
       }
@@ -2157,7 +2438,7 @@ var App = {
     // 6. User-configured aliases from config.js (if any defined by user)
     if (typeof AppConfig !== 'undefined' && AppConfig.channelAliases) {
       var customAliases = AppConfig.channelAliases;
-      var aliasTargets = customAliases[channel.id] || customAliases[cleanId] || customAliases[normName] || [];
+      var aliasTargets = customAliases[channel.id] || customAliases[cleanId] || customAliases[normName] || customAliases[rawStemmedId] || [];
       if (typeof aliasTargets === 'string') aliasTargets = [aliasTargets];
 
       if (!aliasTargets.length) {
@@ -2165,10 +2446,10 @@ var App = {
           if (customAliases.hasOwnProperty(cKey)) {
             var cList = customAliases[cKey];
             var arr = typeof cList === 'string' ? [cList] : (cList || []);
-            var inGroup = (cKey === normName || cKey === cleanId);
+            var inGroup = (cKey === normName || cKey === cleanId || cKey === rawStemmedId);
             if (!inGroup) {
               for (var ci = 0; ci < arr.length; ci++) {
-                if (arr[ci] === normName || arr[ci] === cleanId) {
+                if (arr[ci] === normName || arr[ci] === cleanId || arr[ci] === rawStemmedId) {
                   inGroup = true;
                   break;
                 }
@@ -2186,11 +2467,15 @@ var App = {
         var targetKey = aliasTargets[at];
         if (this.epg[targetKey] && this.epg[targetKey].length) return this.epg[targetKey];
         var targetNorm = this.normalizeName(targetKey);
+        var targetRaw = this.rawAlpha(targetKey);
         for (key in this.epg) {
           if (this.epg.hasOwnProperty(key)) {
             var normKeyAlias = this.normalizeName(key);
             var normKeyStemAlias = this.normalizeName(key.replace(/\.[a-z]{2,4}$/i, ''));
-            if ((normKeyAlias === targetNorm || normKeyStemAlias === targetNorm) && this.epg[key].length) {
+            var rawKeyAlias = this.rawAlpha(key);
+            var rawKeyStemAlias = this.rawAlpha(key.replace(/\.[a-z]{2,4}$/i, ''));
+            if ((normKeyAlias === targetNorm || normKeyStemAlias === targetNorm ||
+                 rawKeyAlias === targetRaw || rawKeyStemAlias === targetRaw) && this.epg[key].length) {
               return this.epg[key];
             }
           }
@@ -2325,6 +2610,11 @@ var App = {
       .replace(/[đďĐĎ]/g, 'd');
   },
 
+  rawAlpha: function (str) {
+    if (!str) return '';
+    return this.removeAccents(String(str)).toLowerCase().replace(/[^a-z0-9]+/g, '');
+  },
+
   normalizeName: function (value) {
     if (!value) return '';
     var s = String(value);
@@ -2334,11 +2624,20 @@ var App = {
     s = this.removeAccents(s);
     // 3. Lowercase
     s = s.toLowerCase();
-    // 4. Strip universal broadcast terms with word boundaries
-    s = s.replace(/\b(hd|fhd|uhd|4k|8k|sd|tv|channel|live|stream)\b/g, ' ');
-    // 5. Remove non-alphanumeric characters
+    // 4. Strip leading country prefixes (e.g. "ro: ", "hu - ", "ro | ", "[ro]")
+    s = s.replace(/^(ro|hu|en|de|it|fr|es|at|ch|us|uk|sk|cz|pl|bg|rs|hr|si)\b\s*[:|\-_]?\s*/i, '');
+    // 5. Strip trailing country suffixes (e.g. "PRO TV RO")
+    s = s.replace(/\s+(ro|hu|en|de|it|fr|es|uk)$/i, '');
+    // 6. Keep "tv" joined with numbers (e.g. "TV 2" -> "TV2")
+    s = s.replace(/\b(tv)\s+(\d)/gi, 'tv$2');
+    // 7. Strip universal broadcast terms with word boundaries
+    s = s.replace(/\b(hd|fhd|uhd|4k|8k|sd|channel|live|stream)\b/g, ' ');
+    s = s.replace(/\b(tv)\b/g, ' ');
+    // Normalize attached "tv" at end of name if preceded by 3+ letters (e.g. "protv" -> "pro", "primatv" -> "prima")
+    s = s.replace(/([a-z]{3,})(tv)$/i, '$1');
+    // 8. Remove non-alphanumeric characters
     s = s.replace(/[^a-z0-9]+/g, '');
-    // 6. Strip trailing attached quality indicator after digits: e.g. "24hd" -> "24"
+    // 9. Strip trailing attached quality indicator after digits: e.g. "24hd" -> "24"
     s = s.replace(/(\d+)(hd|fhd|uhd|4k|sd)$/, '$1');
     return s;
   },

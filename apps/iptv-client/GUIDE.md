@@ -67,10 +67,19 @@ When a channel is launched, the video plays full-screen using MPEG-TS hardware d
 
 The program guide window displays the schedule for the selected channel with program start/stop times and highlights the currently airing live show.
 
+### Guide Features & Navigation:
+- **Automatic Center Jump:** Upon opening, the guide automatically calculates the vertical offset of the current live broadcast and smoothly centers it in the viewport.
+- **Show-by-Show Scrolling:**
+  - On TV Remote: Press `Up` / `Down` arrows.
+  - On USB Keyboard: Press `Up` / `Down` arrows.
+  - With Mouse: Scroll with mouse wheel or click any broadcast entry to select and center it.
+- **Fast Page Scrolling (5 shows at a time):**
+  - On TV Remote: Press `CH UP` / `CH DOWN` (Channel up/down buttons).
+  - On USB Keyboard: Press `Page Up` / `Page Down`.
 - **To Close and Return:**
-  - On TV Remote: Press `RETURN`, `BACK`, `YELLOW`, or `GUIDE`.
-  - On USB Keyboard: Press `Backspace`, `Q`, `X`, `G`, `Insert`, or `Y`.
-  - With Mouse: Click the [Close] button or anywhere outside the modal dialog.
+  - On TV Remote: Press `RETURN`, `BACK`, `YELLOW`, `GUIDE`, or `GREEN`.
+  - On USB Keyboard: Press `Backspace`, `Q`, `X`, `G`, `Insert`, `Y`, or `Z`.
+  - With Mouse: Click the **[Close]** button or click anywhere on the dark backdrop outside the modal dialog.
 
 ---
 

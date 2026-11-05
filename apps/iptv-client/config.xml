@@ -1,16 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <widget>
-  <widgetname>Legacy TV</widgetname>
-  <widgetid>legacy.tv.app</widgetid>
-  <description>Lightweight live television widget</description>
-  <version>1.0.1</version>
-  <icon>icon.png</icon>
-  <author>TV App</author>
-  <width>960</width>
-  <height>540</height>
-  <mouse>y</mouse>
-  <type>user</type>
-  <cdata>
-    <entry>index.html</entry>
-  </cdata>
+    <ThumbIcon>icon/ThumbIcon.png</ThumbIcon>
+    <BigThumbIcon>icon/BigThumbIcon.png</BigThumbIcon>
+    <ListIcon>icon/ListIcon.png</ListIcon>
+    <BigListIcon>icon/BigListIcon.png</BigListIcon>
+    <icon>icon.png</icon>
+    <category>video</category>
+    <autoUpdate>y</autoUpdate>
+    <ver>1.0.1</ver>
+    <version>1.0.1</version>
+    <fullwidget>y</fullwidget>
+    <srcctl>y</srcctl>
+    <ticker>n</ticker>
+    <childlock>n</childlock>
+    <audiomute>n</audiomute>
+    <videomute>n</videomute>
+    <dcont>y</dcont>
+    <movie>n</movie>
+    <type>user</type>
+    <widgetname>Legacy TV</widgetname>
+    <widgetid>legacy.tv.app</widgetid>
+    <description>Lightweight Samsung Orsay live TV widget</description>
+    <mouse>y</mouse>
+    <width>960</width>
+    <height>540</height>
+    <author>
+        <name>bszabi05</name>
+        <email></email>
+        <link></link>
+    </author>
+    <cdata>
+        <entry>index.html</entry>
+    </cdata>
 </widget>
