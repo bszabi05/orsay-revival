@@ -1,19 +1,19 @@
 """OrsayCast Routes Blueprint.
 
 Provides network endpoints for the mobile casting controller and TV client:
-- POST /cast: Receives target video URL from mobile and initiates cast or queues it.
+- POST /cast: Receives target media URL (video/music) from mobile and initiates cast or queues it.
 - GET /queue: Inspect the full playlist queue.
-- POST /queue: Add a video to the playlist queue.
+- POST /queue: Add a video or music track to the playlist queue.
 - POST /queue/clear, DELETE /queue: Clear the playlist queue.
 - DELETE /queue/<id>: Remove an item from the queue.
-- POST, GET /next: Skip to next video in queue.
-- POST, GET /previous: Go back to previous video in queue.
+- POST, GET /next: Skip to next media item in queue.
+- POST, GET /previous: Go back to previous media item in queue.
 - POST, GET /play: Resume playback.
 - POST, GET /pause: Pause playback.
 - POST, GET /playpause: Toggle play/pause.
-- GET /status: Polling endpoint for TV and mobile controller.
+- GET /status: Polling endpoint for TV and mobile controller (includes lyrics, artist, media_type).
 - GET, POST /stop: Terminates current playback.
-- GET /cast_stream.ts: Remuxes the extracted video into raw MPEG-TS for Orsay OS.
+- GET /cast_stream.ts: Remuxes the extracted stream into MPEG-TS (audio-only -vn for music).
 """
 import os
 import subprocess
@@ -27,13 +27,14 @@ cast_bp = Blueprint('cast', __name__)
 
 @cast_bp.route('/cast', methods=['POST'])
 def cast():
-    """Start video extraction and prepare cast for the given URL.
+    """Start extraction and prepare cast for the given URL.
 
     JSON payload:
     {
         "url": "https://...",
+        "type": "video" | "music",   (default: "video")
         "title": "Optional title",
-        "play_now": true | false   (default: true)
+        "play_now": true | false     (default: true)
     }
     """
     payload = request.get_json(silent=True) or {}
@@ -45,14 +46,25 @@ def cast():
     if not url:
         return jsonify({"error": "Empty 'url' provided"}), 400
 
+    # Read media type ('video' default, or 'music')
+    media_type = payload.get('type') or payload.get('media_type') or 'video'
+    if media_type not in ('video', 'music'):
+        media_type = 'video'
+
     title = payload.get('title')
     mode = payload.get('mode', '')
     play_now = payload.get('play_now', mode != 'queue')
 
-    item = cast_manager.add_to_queue(url, play_now=bool(play_now), title=title)
+    item = cast_manager.add_to_queue(
+        url,
+        play_now=bool(play_now),
+        title=title,
+        media_type=media_type
+    )
     msg = "Extraction started" if play_now else "Added to queue"
     return jsonify({
         "message": msg,
+        "type": media_type,
         "item": item.to_dict(),
         "queue_index": cast_manager.queue_index,
         "queue_count": len(cast_manager.queue),
@@ -77,12 +89,22 @@ def add_queue():
     if not url:
         return jsonify({"error": "Empty 'url' provided"}), 400
 
+    media_type = payload.get('type') or payload.get('media_type') or 'video'
+    if media_type not in ('video', 'music'):
+        media_type = 'video'
+
     title = payload.get('title')
     play_now = bool(payload.get('play_now', False))
 
-    item = cast_manager.add_to_queue(url, play_now=play_now, title=title)
+    item = cast_manager.add_to_queue(
+        url,
+        play_now=play_now,
+        title=title,
+        media_type=media_type
+    )
     return jsonify({
         "message": "Added to queue",
+        "type": media_type,
         "item": item.to_dict(),
         "queue_count": len(cast_manager.queue),
     }), 201
@@ -202,7 +224,8 @@ def cast_stream():
     if not inputs or not cast_manager.is_ready_or_playing():
         return "No stream ready to cast", 400
 
-    print(f"[OrsayCast] Remuxing stream (inputs={len(inputs)}): {inputs[0]}")
+    media_type = cast_manager.get_media_type()
+    print(f"[OrsayCast] Remuxing stream (type={media_type}, inputs={len(inputs)}): {inputs[0]}")
 
     ffmpeg_cmd = [
         get_ffmpeg_binary(),
@@ -210,17 +233,28 @@ def cast_stream():
         '-loglevel', 'error',
     ]
 
-    # Supports both single pre-muxed streams and dual DASH streams (video + audio)
+    # Supports single pre-muxed/audio-only streams or dual DASH streams
     for inp in inputs:
         ffmpeg_cmd.extend(['-i', inp])
 
-    ffmpeg_cmd.extend([
-        '-c:v', 'copy',
-        '-c:a', 'copy',
-        '-f', 'mpegts',
-        '-flush_packets', '1',
-        'pipe:1'
-    ])
+    if media_type == 'music':
+        # Music mode: Drop video with -vn for a lightweight, black-screen audio-only MPEG-TS stream
+        ffmpeg_cmd.extend([
+            '-vn',
+            '-c:a', 'copy',
+            '-f', 'mpegts',
+            '-flush_packets', '1',
+            'pipe:1'
+        ])
+    else:
+        # Video mode: Remux video and audio tracks
+        ffmpeg_cmd.extend([
+            '-c:v', 'copy',
+            '-c:a', 'copy',
+            '-f', 'mpegts',
+            '-flush_packets', '1',
+            'pipe:1'
+        ])
 
     popen_kwargs = {
         'stdout': subprocess.PIPE,

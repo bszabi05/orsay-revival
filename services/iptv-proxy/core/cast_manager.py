@@ -2,24 +2,88 @@
 
 Handles:
 - Playlist queue management (chaining URLs, next, previous, remove, clear)
+- Audio-only music mode ('music') vs full video mode ('video')
+- Synchronized lyrics lookup via LRCLIB open API for music tracks
 - Thread-safe state transitions ('idle', 'extracting', 'ready', 'playing', 'error')
 - Playback state control ('playing', 'paused')
-- Lazy background yt-dlp metadata extraction without downloading (pre-muxed / H.264+AAC)
+- Lazy background yt-dlp metadata extraction without downloading (pre-muxed / H.264+AAC / audio-only)
 - FFmpeg subprocess lifecycle management optimized for 512MB RAM VPS environments.
 """
+import json
+import re
+import ssl
 import threading
+import urllib.parse
+import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.process import kill_process, release_os_memory
 
 
+def fetch_lrclib_lyrics(artist: Optional[str], title: Optional[str]) -> Optional[str]:
+    """Fetch synchronized lyrics from LRCLIB open API without crashing on failure."""
+    if not title:
+        return None
+
+    clean_title = title
+    clean_artist = artist or ""
+
+    # Smart parsing if artist wasn't explicitly given but title contains 'Artist - Track'
+    if not clean_artist and ' - ' in clean_title:
+        parts = clean_title.split(' - ', 1)
+        clean_artist = parts[0].strip()
+        clean_title = parts[1].strip()
+
+    # Clean typical YouTube music video noise from title e.g. (Official Music Video), [Audio]
+    clean_title = re.sub(
+        r'(?i)[\(\[](official\s*(music\s*)?video|official\s*audio|official|lyrics?|audio|hd|4k|remastered)[\)\]]',
+        '',
+        clean_title
+    ).strip()
+
+    try:
+        query = urllib.parse.urlencode({
+            'artist_name': clean_artist,
+            'track_name': clean_title
+        })
+        url = f"https://lrclib.net/api/get?{query}"
+        req = urllib.request.Request(
+            url,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OrsayCast/1.0'
+            }
+        )
+
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(req, timeout=6, context=ctx) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode('utf-8'))
+                synced = data.get('syncedLyrics')
+                plain = data.get('plainLyrics')
+                return synced if synced else plain
+    except Exception as e:
+        print(f"[OrsayCast] LRCLIB lyrics lookup failed ({clean_artist} - {clean_title}): {e}")
+
+    return None
+
+
 class QueueItem:
     """Represents a single media item in the playback queue."""
 
-    def __init__(self, item_id: int, url: str, title: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        item_id: int,
+        url: str,
+        title: Optional[str] = None,
+        media_type: str = 'video'
+    ) -> None:
         self.id: int = item_id
         self.url: str = url
         self.title: str = title or url
+        self.media_type: str = media_type if media_type in ('video', 'music') else 'video'
+        self.artist: Optional[str] = None
+        self.thumbnail: Optional[str] = None
+        self.lyrics: Optional[str] = None
         self.direct_stream_url: Optional[str] = None
         self.direct_audio_url: Optional[str] = None
         self.duration: Optional[int] = None
@@ -32,6 +96,10 @@ class QueueItem:
             "id": self.id,
             "url": self.url,
             "title": self.title,
+            "media_type": self.media_type,
+            "artist": self.artist,
+            "thumbnail": self.thumbnail,
+            "lyrics": self.lyrics,
             "status": self.status,
             "duration": self.duration,
             "has_audio": bool(self.direct_audio_url or self.direct_stream_url),
@@ -43,7 +111,7 @@ class CastManager:
     """Thread-safe singleton state and playlist manager for OrsayCast."""
 
     def __init__(self) -> None:
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.queue: List[QueueItem] = []
         self.queue_index: int = -1
         self.item_counter: int = 0
@@ -58,6 +126,12 @@ class CastManager:
             return self.queue[self.queue_index]
         return None
 
+    def get_media_type(self) -> str:
+        """Return the media_type ('video' or 'music') of the currently selected track."""
+        with self.lock:
+            curr = self.current_item()
+            return curr.media_type if curr else 'video'
+
     def get_status(self) -> Dict[str, Any]:
         """Return the current cast state dictionary for polling."""
         with self.lock:
@@ -65,8 +139,12 @@ class CastManager:
             state: Dict[str, Any] = {
                 "status": self.status,
                 "playback_state": self.playback_state,
+                "media_type": curr.media_type if curr else "video",
                 "original_url": curr.url if curr else None,
                 "title": curr.title if curr else None,
+                "artist": curr.artist if curr else None,
+                "thumbnail": curr.thumbnail if curr else None,
+                "lyrics": curr.lyrics if curr else None,
                 "duration": curr.duration if curr else None,
                 "queue_index": self.queue_index,
                 "queue_count": len(self.queue),
@@ -164,13 +242,12 @@ class CastManager:
             if target_idx == -1:
                 return False
 
-            # If removing currently active item
             if target_idx == self.queue_index:
                 del self.queue[target_idx]
                 if target_idx < len(self.queue):
-                    self._play_item_at_index_locked(target_idx)
+                    self._prepare_play_item_locked(target_idx)
                 elif self.queue:
-                    self._play_item_at_index_locked(len(self.queue) - 1)
+                    self._prepare_play_item_locked(len(self.queue) - 1)
                 else:
                     self.queue_index = -1
                     self.status = 'idle'
@@ -181,16 +258,18 @@ class CastManager:
 
             return True
 
-    def add_to_queue(self, url: str, play_now: bool = False, title: Optional[str] = None) -> QueueItem:
-        """Add a video URL to the queue.
-
-        If play_now is True, or if the queue is empty / currently idle,
-        the stream switches immediately to this item.
-        """
+    def add_to_queue(
+        self,
+        url: str,
+        play_now: bool = False,
+        title: Optional[str] = None,
+        media_type: str = 'video'
+    ) -> QueueItem:
+        """Add a media URL (video or music) to the playlist queue."""
         worker_task = None
         with self.lock:
             self.item_counter += 1
-            item = QueueItem(self.item_counter, url, title)
+            item = QueueItem(self.item_counter, url, title, media_type=media_type)
             self.queue.append(item)
 
             should_start = play_now or self.status == 'idle' or self.queue_index == -1
@@ -199,12 +278,11 @@ class CastManager:
                 target_idx = len(self.queue) - 1
                 worker_task = self._prepare_play_item_locked(target_idx)
 
-        # Launch background extraction outside the lock if needed
         if worker_task:
-            item_id, item_url = worker_task
+            item_id, item_url, item_type = worker_task
             worker = threading.Thread(
                 target=self._extract_worker,
-                args=(item_id, item_url),
+                args=(item_id, item_url, item_type),
                 name=f"OrsayCast-Extract-{item_id}",
                 daemon=True
             )
@@ -212,9 +290,9 @@ class CastManager:
 
         return item
 
-    def start_cast(self, url: str) -> None:
-        """Backward-compatible shortcut to play a URL immediately."""
-        self.add_to_queue(url, play_now=True)
+    def start_cast(self, url: str, media_type: str = 'video') -> None:
+        """Shortcut to play a URL immediately."""
+        self.add_to_queue(url, play_now=True, media_type=media_type)
 
     def next_track(self) -> Tuple[bool, Optional[QueueItem]]:
         """Advance playback to the next track in the queue."""
@@ -233,17 +311,16 @@ class CastManager:
                 worker_task = self._prepare_play_item_locked(target_idx)
                 next_item = self.queue[target_idx]
             else:
-                # End of playlist reached
                 curr = self.current_item()
                 if curr and curr.status == 'playing':
                     curr.status = 'played'
                 self.status = 'idle'
 
         if worker_task:
-            item_id, item_url = worker_task
+            item_id, item_url, item_type = worker_task
             worker = threading.Thread(
                 target=self._extract_worker,
-                args=(item_id, item_url),
+                args=(item_id, item_url, item_type),
                 name=f"OrsayCast-Extract-{item_id}",
                 daemon=True
             )
@@ -252,7 +329,7 @@ class CastManager:
         return (has_next, next_item)
 
     def previous_track(self) -> Tuple[bool, Optional[QueueItem]]:
-        """Go back to the previous track or restart the current track."""
+        """Go back to the previous track or restart current track."""
         worker_task = None
         target_item = None
         has_prev = False
@@ -264,16 +341,15 @@ class CastManager:
                 worker_task = self._prepare_play_item_locked(target_idx)
                 target_item = self.queue[target_idx]
             elif self.queue_index == 0:
-                # Replay first track from beginning
                 has_prev = True
                 worker_task = self._prepare_play_item_locked(0)
                 target_item = self.queue[0]
 
         if worker_task:
-            item_id, item_url = worker_task
+            item_id, item_url, item_type = worker_task
             worker = threading.Thread(
                 target=self._extract_worker,
-                args=(item_id, item_url),
+                args=(item_id, item_url, item_type),
                 name=f"OrsayCast-Extract-{item_id}",
                 daemon=True
             )
@@ -292,10 +368,10 @@ class CastManager:
                     worker_task = self._prepare_play_item_locked(idx)
 
         if worker_task:
-            item_id, item_url = worker_task
+            item_id, item_url, item_type = worker_task
             worker = threading.Thread(
                 target=self._extract_worker,
-                args=(item_id, item_url),
+                args=(item_id, item_url, item_type),
                 name=f"OrsayCast-Extract-{item_id}",
                 daemon=True
             )
@@ -319,10 +395,10 @@ class CastManager:
         self.play()
         return 'playing'
 
-    def _prepare_play_item_locked(self, index: int) -> Optional[Tuple[int, str]]:
+    def _prepare_play_item_locked(self, index: int) -> Optional[Tuple[int, str, str]]:
         """Internal helper: prepare item for playback under lock.
 
-        Returns (item_id, url) tuple if background extraction is needed.
+        Returns (item_id, url, media_type) tuple if background extraction is needed.
         """
         old_proc = self.active_process
         self.active_process = None
@@ -333,37 +409,36 @@ class CastManager:
         self.queue_index = index
         item = self.queue[index]
 
-        # If already extracted and valid, switch directly to ready
         if item.status == 'ready' and item.direct_stream_url:
             self.status = 'ready'
             self.playback_state = 'playing'
             self.error_message = None
             return None
 
-        # Needs extraction
         item.status = 'extracting'
         item.error = None
         self.status = 'extracting'
         self.playback_state = 'playing'
         self.error_message = None
-        return (item.id, item.url)
+        return (item.id, item.url, item.media_type)
 
-    def _extract_worker(self, item_id: int, url: str) -> None:
-        """Background worker executing yt-dlp metadata extraction without downloading."""
+    def _extract_worker(self, item_id: int, url: str, media_type: str) -> None:
+        """Background worker executing yt-dlp metadata extraction and LRCLIB lyrics lookup."""
         try:
             import yt_dlp
 
-            # Format selector hierarchy:
-            # 1. Pre-muxed <=720p MP4 (single file)
-            # 2. H.264 (avc1) <=720p video + AAC (mp4a) audio (remuxed by FFmpeg on the fly)
-            # 3. Any <=720p video + any audio
-            # 4. Fallback best
-            format_selector = (
-                'best[height<=720][ext=mp4]/'
-                'bestvideo[height<=720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/'
-                'bestvideo[height<=720]+bestaudio/'
-                'best'
-            )
+            # 1. Dynamic yt-dlp format selection based on media_type:
+            # - Music mode: Audio-only stream (M4A / AAC preferred)
+            # - Video mode: Pre-muxed or H.264+AAC <=720p for Orsay TV
+            if media_type == 'music':
+                format_selector = 'bestaudio[ext=m4a]/bestaudio/b'
+            else:
+                format_selector = (
+                    'best[height<=720][ext=mp4]/'
+                    'bestvideo[height<=720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/'
+                    'bestvideo[height<=720]+bestaudio/'
+                    'best'
+                )
 
             ydl_opts = {
                 'format': format_selector,
@@ -379,6 +454,8 @@ class CastManager:
 
                 title = info.get('title')
                 duration = info.get('duration')
+                thumbnail = info.get('thumbnail')
+                artist = info.get('artist') or info.get('creator') or info.get('uploader') or info.get('channel')
                 direct_v_url = None
                 direct_a_url = None
 
@@ -400,8 +477,13 @@ class CastManager:
                 if not direct_v_url:
                     raise ValueError("No direct media stream URL could be extracted")
 
+                # 2. LRCLIB API Integration: Fetch synced lyrics for music mode
+                lyrics = None
+                if media_type == 'music':
+                    lyrics = fetch_lrclib_lyrics(artist, title)
+
+                # 3. Save extracted metadata under lock
                 with self.lock:
-                    # Find item by ID to avoid race conditions
                     target_item = None
                     for it in self.queue:
                         if it.id == item_id:
@@ -413,16 +495,18 @@ class CastManager:
                         target_item.direct_audio_url = direct_a_url
                         if title:
                             target_item.title = title
+                        target_item.artist = artist
+                        target_item.thumbnail = thumbnail
+                        target_item.lyrics = lyrics
                         target_item.duration = duration
                         target_item.status = 'ready'
                         target_item.error = None
 
-                    # If this item is currently selected, update manager status
                     curr = self.current_item()
                     if curr and curr.id == item_id:
                         self.status = 'ready'
                         self.error_message = None
-                        print(f"[OrsayCast] Queue item #{item_id} ready: {title} (dual_input={bool(direct_a_url)})")
+                        print(f"[OrsayCast] #{item_id} ready ({media_type}): {title} by {artist} (lyrics={bool(lyrics)})")
 
         except Exception as e:
             print(f"[OrsayCast] Extraction error for #{item_id} ({url}): {e}")

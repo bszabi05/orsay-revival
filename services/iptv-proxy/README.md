@@ -1,6 +1,6 @@
 # 🚀 IPTV & OrsayCast Media Proxy Server
 
-A lightweight, zero-overhead Python Flask and FFmpeg proxy server designed to bridge modern IPTV streams (HLS, m3u8, TS), web video casting with playlist queuing (OrsayCast via yt-dlp), and media assets with legacy Samsung Orsay Smart TVs and future applications.
+A lightweight, zero-overhead Python Flask and FFmpeg proxy server designed to bridge modern IPTV streams (HLS, m3u8, TS), web video & music casting with playlist queuing and synchronized lyrics (OrsayCast via yt-dlp & LRCLIB), and media assets with legacy Samsung Orsay Smart TVs and future applications.
 
 ---
 
@@ -13,7 +13,7 @@ services/iptv-proxy/
 ├── core/
 │   ├── config.py         # Paths, cache directories, port and host configuration
 │   ├── process.py        # Subprocess tracking, process group killing, Linux malloc_trim & GC
-│   └── cast_manager.py   # OrsayCast playlist queue, state machine, threading locks & yt-dlp extraction
+│   └── cast_manager.py   # OrsayCast playlist queue, state machine, LRCLIB lyrics & yt-dlp extraction
 ├── routes/
 │   ├── __init__.py       # Blueprint registry (register_routes)
 │   ├── stream.py         # GET /stream.ts (IPTV FFmpeg MPEG-TS live splicing & low-delay proxy)
@@ -67,19 +67,27 @@ gunicorn -w 4 -b 0.0.0.0:7833 "server:app"
 3. **Health & Diagnostics (`GET /health`)**:
    - Active streams and system status check.
 
-### 📲 OrsayCast Endpoints (Casting, Playlists & Playback Control)
+### 📲 OrsayCast Endpoints (Video & Music Casting, Playlists & Lyrics)
 1. **Initiate Cast / Queue (`POST /cast`)**:
-   - **Body:** `{"url": "https://...", "play_now": true | false, "title": "Optional"}`
+   - **Body:**
+     ```json
+     {
+       "url": "https://...",
+       "type": "video" | "music",
+       "play_now": true | false,
+       "title": "Optional"
+     }
+     ```
    - **Status:** 202 Accepted.
-   - If `play_now=true` (or queue empty), switches immediately and starts extraction.
-   - If `play_now=false`, appends to the playlist queue without interrupting current playback.
+   - **`type: "video"` (default):** Extracts $\le$ 720p H.264 video + AAC audio.
+   - **`type: "music"`:** Extracts pure audio-only stream (`bestaudio[ext=m4a]/bestaudio/b`), metadata (artist, title, thumbnail), and fetches synchronized LRC lyrics from the open LRCLIB API.
 2. **Playlist Queue Management**:
    - `GET /queue`: Returns full queue list, item IDs, and current index.
-   - `POST /queue`: Add an item (`{"url": "...", "title": "..."}`).
+   - `POST /queue`: Add an item (`{"url": "...", "title": "...", "type": "video"|"music"}`).
    - `POST /queue/clear` or `DELETE /queue`: Clears the queue.
    - `DELETE /queue/<item_id>`: Removes a specific item by ID.
 3. **Track Navigation**:
-   - `POST /next` (or `GET /next`): Skips to the next video in the queue.
+   - `POST /next` (or `GET /next`): Skips to the next video/song in the queue.
    - `POST /previous` (or `GET /previous`): Returns to previous track (or restarts track 0).
 4. **Playback Control**:
    - `POST /play` (or `GET /play`): Sets playback state to `'playing'`.
@@ -92,7 +100,11 @@ gunicorn -w 4 -b 0.0.0.0:7833 "server:app"
      {
        "status": "ready",
        "playback_state": "playing",
-       "title": "Video Title",
+       "media_type": "music",
+       "title": "Bohemian Rhapsody",
+       "artist": "Queen",
+       "thumbnail": "https://...",
+       "lyrics": "[00:00.00] ...",
        "queue_index": 0,
        "queue_count": 3,
        "has_next": true,
@@ -101,8 +113,9 @@ gunicorn -w 4 -b 0.0.0.0:7833 "server:app"
      ```
 6. **Stop Cast (`POST /stop`, `GET /stop`)**:
    - Terminates running FFmpeg process without erasing the queue.
-7. **Casting Video Stream (`GET /cast_stream.ts`)**:
-   - Pipes the current extracted URL(s) through FFmpeg into raw MPEG-TS.
+7. **Casting Video / Audio Stream (`GET /cast_stream.ts`)**:
+   - **Video Mode:** Pipes stream through FFmpeg with `-c:v copy -c:a copy -f mpegts`.
+   - **Music Mode:** Drops video track with `-vn` (`-i <audio_url> -vn -c:a copy -f mpegts`) for a lightweight, black-screen audio-only MPEG-TS stream.
 
 ---
 
@@ -110,7 +123,8 @@ gunicorn -w 4 -b 0.0.0.0:7833 "server:app"
 
 Running long-term streaming proxies on resource-constrained servers (like a 512MB RAM cloud VPS or Raspberry Pi) requires aggressive cleanup:
 - **No Video Downloads:** yt-dlp only fetches stream URLs (`download=False`).
-- **Lazy Extraction:** Only the currently playing video is extracted to conserve CPU and RAM.
+- **Lazy Extraction:** Only the currently playing item is extracted to conserve CPU and RAM.
+- **Pure Remuxing (Zero Transcoding):** Audio-only tracks are remuxed with `-vn -c:a copy` requiring virtually 0% CPU.
 - **Process Groups:** On Linux, FFmpeg subprocesses run in dedicated process groups (`start_new_session=True`). Disconnections invoke `os.killpg()` to eliminate orphan threads.
 - **stderr to DEVNULL:** Suppressing stderr prevents buffer leaks that trigger OOM crashes.
 - **glibc Memory Trimming:** Python invokes `ctypes.CDLL(libc).malloc_trim(0)` on stream termination, forcing the Linux kernel to reclaim free heap memory immediately.
