@@ -1,6 +1,6 @@
 # 🚀 IPTV & OrsayCast Media Proxy Server
 
-A lightweight, zero-overhead Python Flask and FFmpeg proxy server designed to bridge modern IPTV streams (HLS, m3u8, TS), web video casting (OrsayCast via yt-dlp), and media assets with legacy Samsung Orsay Smart TVs and future applications.
+A lightweight, zero-overhead Python Flask and FFmpeg proxy server designed to bridge modern IPTV streams (HLS, m3u8, TS), web video casting with playlist queuing (OrsayCast via yt-dlp), and media assets with legacy Samsung Orsay Smart TVs and future applications.
 
 ---
 
@@ -13,13 +13,13 @@ services/iptv-proxy/
 ├── core/
 │   ├── config.py         # Paths, cache directories, port and host configuration
 │   ├── process.py        # Subprocess tracking, process group killing, Linux malloc_trim & GC
-│   └── cast_manager.py   # OrsayCast single-stream state machine, threading locks & yt-dlp extraction
+│   └── cast_manager.py   # OrsayCast playlist queue, state machine, threading locks & yt-dlp extraction
 ├── routes/
 │   ├── __init__.py       # Blueprint registry (register_routes)
 │   ├── stream.py         # GET /stream.ts (IPTV FFmpeg MPEG-TS live splicing & low-delay proxy)
 │   ├── logo.py           # GET /logo (Two-tier disk caching & 2MB-capped image proxy)
 │   ├── health.py         # GET /health (Diagnostic health check & active stream metrics)
-│   └── cast.py           # POST /cast, GET /status, POST /stop, GET /cast_stream.ts (OrsayCast)
+│   └── cast.py           # /cast, /queue, /next, /previous, /play, /pause, /status, /cast_stream.ts
 ├── server.py             # Main entry point & application controller (create_app factory)
 └── requirements.txt      # Python dependencies (Flask, yt-dlp)
 ```
@@ -67,18 +67,42 @@ gunicorn -w 4 -b 0.0.0.0:7833 "server:app"
 3. **Health & Diagnostics (`GET /health`)**:
    - Active streams and system status check.
 
-### 📲 OrsayCast Endpoints (Phase 1)
-1. **Initiate Cast (`POST /cast`)**:
-   - **Body:** `{"url": "https://..."}`
-   - **Status:** 202 Accepted `{"message": "Extraction started"}`
-   - Resets any previous stream, updates state to `'extracting'`, and launches a background thread to extract stream metadata with `yt-dlp` (strictly `download=False`, pre-muxed $\le$ 720p).
-2. **Poll Status (`GET /status`)**:
-   - **Idle:** Returns HTTP `204 No Content`.
-   - **Active:** Returns JSON with current state (e.g. `{"status": "ready", "original_url": "..."}`).
-3. **Stop Cast (`POST /stop`)**:
-   - Terminates running FFmpeg processes, clears state, resets to `'idle'`, and triggers glibc heap trim.
-4. **Casting Video Stream (`GET /cast_stream.ts`)**:
-   - Pipes the extracted direct URL through FFmpeg into raw MPEG-TS with unbuffered `read1(65536)` streaming.
+### 📲 OrsayCast Endpoints (Casting, Playlists & Playback Control)
+1. **Initiate Cast / Queue (`POST /cast`)**:
+   - **Body:** `{"url": "https://...", "play_now": true | false, "title": "Optional"}`
+   - **Status:** 202 Accepted.
+   - If `play_now=true` (or queue empty), switches immediately and starts extraction.
+   - If `play_now=false`, appends to the playlist queue without interrupting current playback.
+2. **Playlist Queue Management**:
+   - `GET /queue`: Returns full queue list, item IDs, and current index.
+   - `POST /queue`: Add an item (`{"url": "...", "title": "..."}`).
+   - `POST /queue/clear` or `DELETE /queue`: Clears the queue.
+   - `DELETE /queue/<item_id>`: Removes a specific item by ID.
+3. **Track Navigation**:
+   - `POST /next` (or `GET /next`): Skips to the next video in the queue.
+   - `POST /previous` (or `GET /previous`): Returns to previous track (or restarts track 0).
+4. **Playback Control**:
+   - `POST /play` (or `GET /play`): Sets playback state to `'playing'`.
+   - `POST /pause` (or `GET /pause`): Sets playback state to `'paused'`.
+   - `POST /playpause` (or `GET /playpause`, `/toggle`): Toggles between play and pause.
+5. **Poll Status (`GET /status`)**:
+   - **Idle:** Returns HTTP `204 No Content` when idle and queue is empty.
+   - **Active:** Returns JSON containing:
+     ```json
+     {
+       "status": "ready",
+       "playback_state": "playing",
+       "title": "Video Title",
+       "queue_index": 0,
+       "queue_count": 3,
+       "has_next": true,
+       "has_prev": false
+     }
+     ```
+6. **Stop Cast (`POST /stop`, `GET /stop`)**:
+   - Terminates running FFmpeg process without erasing the queue.
+7. **Casting Video Stream (`GET /cast_stream.ts`)**:
+   - Pipes the current extracted URL(s) through FFmpeg into raw MPEG-TS.
 
 ---
 
@@ -86,6 +110,7 @@ gunicorn -w 4 -b 0.0.0.0:7833 "server:app"
 
 Running long-term streaming proxies on resource-constrained servers (like a 512MB RAM cloud VPS or Raspberry Pi) requires aggressive cleanup:
 - **No Video Downloads:** yt-dlp only fetches stream URLs (`download=False`).
+- **Lazy Extraction:** Only the currently playing video is extracted to conserve CPU and RAM.
 - **Process Groups:** On Linux, FFmpeg subprocesses run in dedicated process groups (`start_new_session=True`). Disconnections invoke `os.killpg()` to eliminate orphan threads.
 - **stderr to DEVNULL:** Suppressing stderr prevents buffer leaks that trigger OOM crashes.
 - **glibc Memory Trimming:** Python invokes `ctypes.CDLL(libc).malloc_trim(0)` on stream termination, forcing the Linux kernel to reclaim free heap memory immediately.

@@ -1,9 +1,18 @@
 """OrsayCast Routes Blueprint.
 
 Provides network endpoints for the mobile casting controller and TV client:
-- POST /cast: Receives target video URL from mobile and initiates background extraction.
-- GET /status: Polling endpoint for the TV (returns 204 when idle, state JSON otherwise).
-- GET/POST /stop: Terminates casting session and releases memory.
+- POST /cast: Receives target video URL from mobile and initiates cast or queues it.
+- GET /queue: Inspect the full playlist queue.
+- POST /queue: Add a video to the playlist queue.
+- POST /queue/clear, DELETE /queue: Clear the playlist queue.
+- DELETE /queue/<id>: Remove an item from the queue.
+- POST, GET /next: Skip to next video in queue.
+- POST, GET /previous: Go back to previous video in queue.
+- POST, GET /play: Resume playback.
+- POST, GET /pause: Pause playback.
+- POST, GET /playpause: Toggle play/pause.
+- GET /status: Polling endpoint for TV and mobile controller.
+- GET, POST /stop: Terminates current playback.
 - GET /cast_stream.ts: Remuxes the extracted video into raw MPEG-TS for Orsay OS.
 """
 import os
@@ -18,7 +27,15 @@ cast_bp = Blueprint('cast', __name__)
 
 @cast_bp.route('/cast', methods=['POST'])
 def cast():
-    """Start video extraction and prepare cast for the given URL."""
+    """Start video extraction and prepare cast for the given URL.
+
+    JSON payload:
+    {
+        "url": "https://...",
+        "title": "Optional title",
+        "play_now": true | false   (default: true)
+    }
+    """
     payload = request.get_json(silent=True) or {}
     url = payload.get('url')
     if not url or not isinstance(url, str):
@@ -28,26 +45,152 @@ def cast():
     if not url:
         return jsonify({"error": "Empty 'url' provided"}), 400
 
-    cast_manager.start_cast(url)
-    return jsonify({"message": "Extraction started"}), 202
+    title = payload.get('title')
+    mode = payload.get('mode', '')
+    play_now = payload.get('play_now', mode != 'queue')
+
+    item = cast_manager.add_to_queue(url, play_now=bool(play_now), title=title)
+    msg = "Extraction started" if play_now else "Added to queue"
+    return jsonify({
+        "message": msg,
+        "item": item.to_dict(),
+        "queue_index": cast_manager.queue_index,
+        "queue_count": len(cast_manager.queue),
+    }), 202
+
+
+@cast_bp.route('/queue', methods=['GET'])
+def get_queue():
+    """Return the entire playlist queue with items and current index."""
+    return jsonify(cast_manager.get_queue_info()), 200
+
+
+@cast_bp.route('/queue', methods=['POST'])
+def add_queue():
+    """Explicit endpoint to append an item to the playlist queue."""
+    payload = request.get_json(silent=True) or {}
+    url = payload.get('url')
+    if not url or not isinstance(url, str):
+        return jsonify({"error": "Missing or invalid 'url' in JSON body"}), 400
+
+    url = url.strip()
+    if not url:
+        return jsonify({"error": "Empty 'url' provided"}), 400
+
+    title = payload.get('title')
+    play_now = bool(payload.get('play_now', False))
+
+    item = cast_manager.add_to_queue(url, play_now=play_now, title=title)
+    return jsonify({
+        "message": "Added to queue",
+        "item": item.to_dict(),
+        "queue_count": len(cast_manager.queue),
+    }), 201
+
+
+@cast_bp.route('/queue/clear', methods=['POST', 'GET'])
+@cast_bp.route('/queue', methods=['DELETE'])
+def clear_queue():
+    """Clear all items from the playlist queue and stop playback."""
+    cast_manager.clear_queue()
+    return jsonify({"message": "Queue cleared", "status": "idle"}), 200
+
+
+@cast_bp.route('/queue/<int:item_id>', methods=['DELETE', 'POST'])
+def remove_queue_item(item_id: int):
+    """Remove a specific item from the playlist queue by ID."""
+    removed = cast_manager.remove_queue_item(item_id)
+    if not removed:
+        return jsonify({"error": f"Item #{item_id} not found in queue"}), 404
+    return jsonify({"message": f"Item #{item_id} removed from queue", "queue_count": len(cast_manager.queue)}), 200
+
+
+@cast_bp.route('/next', methods=['POST', 'GET'])
+def next_item():
+    """Advance to the next track in the playlist queue."""
+    has_next, next_item = cast_manager.next_track()
+    if has_next and next_item:
+        return jsonify({
+            "message": "Switched to next track",
+            "status": cast_manager.status,
+            "item": next_item.to_dict(),
+            "queue_index": cast_manager.queue_index,
+        }), 200
+    return jsonify({
+        "message": "End of queue reached",
+        "status": "idle",
+        "queue_index": cast_manager.queue_index,
+    }), 200
+
+
+@cast_bp.route('/previous', methods=['POST', 'GET'])
+def previous_item():
+    """Go back to the previous track or restart current track."""
+    has_prev, prev_item = cast_manager.previous_track()
+    if has_prev and prev_item:
+        return jsonify({
+            "message": "Switched to previous track",
+            "status": cast_manager.status,
+            "item": prev_item.to_dict(),
+            "queue_index": cast_manager.queue_index,
+        }), 200
+    return jsonify({
+        "message": "Already at the start of queue",
+        "status": cast_manager.status,
+        "queue_index": cast_manager.queue_index,
+    }), 200
+
+
+@cast_bp.route('/play', methods=['POST', 'GET'])
+def play():
+    """Resume playback."""
+    cast_manager.play()
+    return jsonify({
+        "message": "Playback set to play",
+        "playback_state": "playing",
+        "status": cast_manager.status,
+    }), 200
+
+
+@cast_bp.route('/pause', methods=['POST', 'GET'])
+def pause():
+    """Pause playback."""
+    cast_manager.pause()
+    return jsonify({
+        "message": "Playback paused",
+        "playback_state": "paused",
+        "status": cast_manager.status,
+    }), 200
+
+
+@cast_bp.route('/playpause', methods=['POST', 'GET'])
+@cast_bp.route('/toggle', methods=['POST', 'GET'])
+def toggle_playpause():
+    """Toggle between play and pause."""
+    new_state = cast_manager.toggle_play_pause()
+    return jsonify({
+        "message": f"Playback toggled to {new_state}",
+        "playback_state": new_state,
+        "status": cast_manager.status,
+    }), 200
 
 
 @cast_bp.route('/status', methods=['GET'])
 def status():
     """Return the current casting state for TV/controller polling.
 
-    Returns HTTP 204 No Content when status is 'idle'.
-    Returns JSON state when 'extracting', 'ready', 'playing', or 'error'.
+    Returns HTTP 204 No Content when status is 'idle' and queue is empty.
+    Returns JSON state when active or queue is populated.
     """
     state = cast_manager.get_status()
-    if state.get("status") == "idle":
+    if state.get("status") == "idle" and state.get("queue_count", 0) == 0:
         return ("", 204)
     return jsonify(state), 200
 
 
 @cast_bp.route('/stop', methods=['GET', 'POST'])
 def stop():
-    """Stop casting, kill FFmpeg subprocess, and reset state to 'idle'."""
+    """Stop current streaming playback without clearing the queue."""
     cast_manager.stop_cast()
     return jsonify({"message": "Cast stopped", "status": "idle"}), 200
 
@@ -95,7 +238,7 @@ def cast_stream():
         if cleaned_up[0]:
             return
         cleaned_up[0] = True
-        cast_manager.stop_cast()
+        cast_manager.stop_active_stream()
 
     def generate():
         read_chunk = getattr(proc.stdout, 'read1', proc.stdout.read)
