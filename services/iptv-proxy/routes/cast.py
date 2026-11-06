@@ -227,32 +227,65 @@ def cast_stream():
     media_type = cast_manager.get_media_type()
     print(f"[OrsayCast] Remuxing stream (type={media_type}, inputs={len(inputs)}): {inputs[0]}")
 
+    user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
     ffmpeg_cmd = [
         get_ffmpeg_binary(),
         '-hide_banner',
         '-loglevel', 'error',
+        '-rw_timeout', '15000000',
+        '-timeout', '15000000',
+        '-reconnect', '1',
+        '-reconnect_streamed', '1',
+        '-reconnect_delay_max', '4',
+        '-reconnect_on_http_error', '4xx,5xx',
+        '-probesize', '1048576',
+        '-analyzeduration', '1500000',
+        '-fflags', '+nobuffer+flush_packets+fastseek',
+        '-flags', 'low_delay',
     ]
 
     # Supports single pre-muxed/audio-only streams or dual DASH streams
     for inp in inputs:
-        ffmpeg_cmd.extend(['-i', inp])
+        ffmpeg_cmd.extend([
+            '-user_agent', user_agent,
+            '-i', inp
+        ])
 
     if media_type == 'music':
         # Music mode: Drop video with -vn for a lightweight, black-screen audio-only MPEG-TS stream
         ffmpeg_cmd.extend([
             '-vn',
             '-c:a', 'copy',
+            '-map', '0:a:0?',
+            '-avoid_negative_ts', 'make_zero',
             '-f', 'mpegts',
             '-flush_packets', '1',
+            '-max_delay', '500000',
+            '-mpegts_flags', '+resend_headers+initial_discontinuity',
             'pipe:1'
         ])
     else:
-        # Video mode: Remux video and audio tracks
+        # Video mode: Remux video and audio tracks with explicit stream mapping
+        if len(inputs) >= 2:
+            ffmpeg_cmd.extend([
+                '-map', '0:v:0?',
+                '-map', '1:a:0?',
+            ])
+        else:
+            ffmpeg_cmd.extend([
+                '-map', '0:v:0?',
+                '-map', '0:a?',
+            ])
+
         ffmpeg_cmd.extend([
             '-c:v', 'copy',
             '-c:a', 'copy',
+            '-avoid_negative_ts', 'make_zero',
             '-f', 'mpegts',
             '-flush_packets', '1',
+            '-max_delay', '500000',
+            '-mpegts_flags', '+resend_headers+initial_discontinuity',
             'pipe:1'
         ])
 

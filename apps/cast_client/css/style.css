@@ -1,0 +1,383 @@
+/*
+ * OrsayCast CSS Stylesheet
+ *
+ * Optimized for Samsung Smart TV (Orsay OS 2012-2015 WebKit 534/537).
+ * Constraints:
+ *  - Fixed 960x540 viewport
+ *  - STRICTLY NO Flexbox (display: flex) and NO CSS Grid (display: grid)
+ *  - Absolute positioning and inline-block layout
+ *  - Hardware acceleration exclusively via translate3d(0,0,0)
+ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  width: 960px;
+  height: 540px;
+  overflow: hidden;
+  background-color: #0b0f17;
+  font-family: Arial, Helvetica, "Samsung Sans", sans-serif;
+  color: #ffffff;
+}
+
+#appContainer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 960px;
+  height: 540px;
+  overflow: hidden;
+  background-color: #0b0f17;
+}
+
+/* ==========================================================================
+   1. Standby Layer (Idle Screensaver)
+   ========================================================================== */
+
+#standbyLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 960px;
+  height: 540px;
+  background-color: #0c1017;
+  background-image: -webkit-radial-gradient(50% 40%, circle, #162032 0%, #090d14 100%);
+  background-image: radial-gradient(circle at 50% 40%, #162032 0%, #090d14 100%);
+  z-index: 10;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+.standbyContent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 960px;
+  height: 540px;
+  text-align: center;
+}
+
+.castLogoBox {
+  margin-top: 65px;
+}
+
+.castLogoBadge {
+  display: inline-block;
+  padding: 6px 20px;
+  background-color: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+}
+
+.castDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background-color: #3b82f6;
+  vertical-align: middle;
+  margin-right: 8px;
+  box-shadow: 0 0 10px #3b82f6;
+}
+
+.castLogoText {
+  display: inline-block;
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: #e2e8f0;
+  vertical-align: middle;
+}
+
+.castLogoText .highlight {
+  color: #60a5fa;
+}
+
+#clockDisplay {
+  font-size: 80px;
+  font-weight: 300;
+  letter-spacing: 4px;
+  margin-top: 25px;
+  color: #f8fafc;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+#dateDisplay {
+  font-size: 16px;
+  color: #94a3b8;
+  letter-spacing: 1px;
+  margin-top: -4px;
+  text-transform: uppercase;
+}
+
+.standbyMessageContainer {
+  margin-top: 45px;
+}
+
+#standbyStatus {
+  font-size: 24px;
+  font-weight: bold;
+  color: #38bdf8;
+  letter-spacing: 1px;
+}
+
+#standbySubtext {
+  font-size: 14px;
+  color: #64748b;
+  margin-top: 8px;
+}
+
+.serverInfoBadge {
+  position: absolute;
+  bottom: 25px;
+  left: 0;
+  width: 960px;
+  text-align: center;
+}
+
+.serverDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.serverDot.connected {
+  background-color: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+}
+
+.serverDot.disconnected {
+  background-color: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+.serverDot.pending {
+  background-color: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+}
+
+#serverUrlLabel {
+  font-size: 12px;
+  color: #64748b;
+  vertical-align: middle;
+}
+
+/* ==========================================================================
+   2. Player Layer (Full-screen Video & Music)
+   ========================================================================== */
+
+#playerLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 960px;
+  height: 540px;
+  background-color: #000000;
+  z-index: 20;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+#videoPlayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 960px;
+  height: 540px;
+  background-color: #000000;
+  border: none;
+  outline: none;
+}
+
+/* ==========================================================================
+   3. OSD Overlay Banner
+   ========================================================================== */
+
+#playerOsd {
+  position: absolute;
+  bottom: 25px;
+  left: 40px;
+  width: 880px;
+  background-color: rgba(15, 23, 42, 0.90);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  padding: 14px 22px;
+  z-index: 30;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-transition: opacity 0.35s ease-out;
+  transition: opacity 0.35s ease-out;
+}
+
+.osdHidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.osdVisible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.osdBadge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: bold;
+  background-color: #2563eb;
+  color: #ffffff;
+  padding: 2px 7px;
+  border-radius: 3px;
+  letter-spacing: 1px;
+  margin-bottom: 5px;
+}
+
+.osdTitle {
+  font-size: 19px;
+  font-weight: bold;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.osdSubtitle {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+   4. Pause Indicator Overlay
+   ========================================================================== */
+
+#pauseIndicator {
+  position: absolute;
+  top: 220px;
+  left: 380px;
+  width: 200px;
+  text-align: center;
+  background-color: rgba(0, 0, 0, 0.80);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  padding: 16px 10px;
+  z-index: 35;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+.pauseIcon {
+  font-size: 30px;
+  color: #f8fafc;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.pauseText {
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: #cbd5e1;
+}
+
+/* ==========================================================================
+   5. Music Visualizer & Lyrics Backdrop
+   ========================================================================== */
+
+#musicBackdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 960px;
+  height: 540px;
+  background-color: #0c1017;
+  background-image: -webkit-radial-gradient(50% 40%, circle, #162032 0%, #090d14 100%);
+  background-image: radial-gradient(circle at 50% 40%, #162032 0%, #090d14 100%);
+  z-index: 25;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+.musicCard {
+  position: absolute;
+  top: 60px;
+  left: 60px;
+  width: 840px;
+  height: 420px;
+}
+
+.musicCoverWrap {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: 260px;
+  height: 260px;
+  background-color: #1e293b;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#musicCover {
+  width: 260px;
+  height: 260px;
+  display: block;
+}
+
+.musicTrackDetails {
+  position: absolute;
+  top: 20px;
+  left: 310px;
+  width: 510px;
+  height: 380px;
+}
+
+.musicTitle {
+  font-size: 26px;
+  font-weight: bold;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.musicArtist {
+  font-size: 17px;
+  color: #38bdf8;
+  margin-top: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lyricsContainer {
+  position: absolute;
+  top: 80px;
+  left: 0;
+  width: 510px;
+  height: 290px;
+  overflow: hidden;
+  background-color: rgba(15, 23, 42, 0.65);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 14px 16px;
+}
+
+.lyricsContent {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #cbd5e1;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+

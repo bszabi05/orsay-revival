@@ -7,12 +7,17 @@ Orsay OS does not support direct sideloading via USB drives. Applications (widge
 2. Configure your client configuration in `apps/iptv-client/config.js` to point to your running proxy server IP (see `services/iptv-proxy/README.md`).
 3. Run the deployment server from the repository root:
    ```bash
+   # Deploy BOTH apps simultaneously (default):
    python tools/orsay-deployer/build_and_serve.py
+
+   # Or deploy a single specific app:
+   python tools/orsay-deployer/build_and_serve.py -app cast_client
+   python tools/orsay-deployer/build_and_serve.py -app iptv-client
    ```
    The script will:
    - Automatically detect your active local IP address (e.g., `192.168.1.137`).
-   - Package the widget into `orsay_tv_app.zip`.
-   - Generate `widgetlist.xml` pointing to the detected IP.
+   - Package the widgets into ZIP archives (`cast_client.zip` and `iptv-client.zip`).
+   - Generate a unified `widgetlist.xml` containing all widgets so the TV installs both at once.
    - Start an HTTP server on **port 80** and print step-by-step instructions.
 
 ## 2. Syncing the TV
