@@ -1,4 +1,5 @@
 """Core utilities and configurations for IPTV Proxy."""
+from .cast_manager import CastManager, QueueItem, cast_manager
 from .config import BASE_DIR, CACHE_DIR, LOGOS_CACHE_DIR, SERVER_HOST, SERVER_PORT
 from .process import (
     active_streams,
@@ -10,4 +11,3 @@ from .process import (
     streams_lock,
     unregister_stream,
 )
-

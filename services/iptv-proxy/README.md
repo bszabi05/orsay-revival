@@ -1,25 +1,28 @@
-# 🚀 IPTV & Media Proxy Server
+# 🚀 IPTV & OrsayCast Media Proxy Server
 
-A lightweight, zero-overhead Python Flask and FFmpeg proxy server designed to bridge modern IPTV streams (HLS, m3u8, TS) and media assets with legacy Samsung Orsay Smart TVs and future applications.
+A lightweight, zero-overhead Python Flask and FFmpeg proxy server designed to bridge modern IPTV streams (HLS, m3u8, TS), web video & music casting with playlist queuing and synchronized lyrics (OrsayCast via yt-dlp & LRCLIB), on-TV music search (YouTube Music via ytmusicapi), and media assets with legacy Samsung Orsay Smart TVs and future applications.
 
 ---
 
 ## 🏗️ Architecture & Modular Structure
 
-The proxy follows a **modular Flask Blueprint** design. Each route domain lives in its own file under `routes/`, while shared system operations, process lifecycle management, and configurations reside under `core/`.
+The proxy follows a **modular Flask Blueprint** design. Each route domain lives in its own file under `routes/`, while shared system operations, process lifecycle management, state management, and configurations reside under `core/`.
 
 ```text
 services/iptv-proxy/
 ├── core/
 │   ├── config.py         # Paths, cache directories, port and host configuration
-│   └── process.py        # Subprocess tracking, process group killing, Linux malloc_trim & GC
+│   ├── process.py        # Subprocess tracking, process group killing, Linux malloc_trim & GC
+│   └── cast_manager.py   # OrsayCast playlist queue, state machine, LRCLIB lyrics & yt-dlp extraction
 ├── routes/
 │   ├── __init__.py       # Blueprint registry (register_routes)
-│   ├── stream.py         # GET /stream.ts (FFmpeg MPEG-TS live splicing & low-delay proxy)
+│   ├── stream.py         # GET /stream.ts (IPTV FFmpeg MPEG-TS live splicing & low-delay proxy)
 │   ├── logo.py           # GET /logo (Two-tier disk caching & 2MB-capped image proxy)
-│   └── health.py         # GET /health (Diagnostic health check & active stream metrics)
+│   ├── health.py         # GET /health (Diagnostic health check & active stream metrics)
+│   ├── cast.py           # /cast, /queue, /next, /previous, /play, /pause, /status, /cast_stream.ts
+│   └── music.py          # GET /api/music/search (YouTube Music search for native Orsay TV client)
 ├── server.py             # Main entry point & application controller (create_app factory)
-└── requirements.txt      # Python dependencies (Flask)
+└── requirements.txt      # Python dependencies (Flask, yt-dlp, ytmusicapi)
 ```
 
 ---
@@ -57,70 +60,89 @@ gunicorn -w 4 -b 0.0.0.0:7833 "server:app"
 
 ## 📡 API Endpoints
 
-### 1. Live Video Stream (`GET /stream.ts?b64=...`)
-- **Query Parameter:** `b64` (Base64-encoded stream URL, e.g. HLS `.m3u8` or raw stream).
-- **MIME Type:** `video/MP2T`
-- **Features:**
-  - FFmpeg remuxing directly to raw MPEG-TS with zero re-encoding CPU overhead (`-c:v copy -c:a copy`).
-  - Low-latency probing (`-probesize 1MB`, `-analyzeduration 1.5s`, `-fflags +nobuffer+flush_packets+fastseek`).
-  - `read1(65536)` unbuffered packet flushing so the TV starts playing instantly without waiting for a full 64KB buffer.
-  - Automatic stream termination and memory cleanup via `Response.call_on_close()` and generator teardown.
+### 📺 IPTV Endpoints
+1. **Live Video Stream (`GET /stream.ts?b64=...`)**:
+   - Remuxes input stream into raw MPEG-TS with zero re-encoding.
+2. **Channel Logo Proxy & Cache (`GET /logo?b64=...`)**:
+   - Disk-backed two-tier caching under `cache/logos/` with 2MB security cap.
+3. **Health & Diagnostics (`GET /health`)**:
+   - Active streams and system status check.
 
-### 2. Channel Logo Proxy & Cache (`GET /logo?b64=...`)
-- **Query Parameter:** `b64` (Base64-encoded original image URL).
-- **Features:**
-  - Disk-backed two-tier caching under `cache/logos/` (`.img` and `.meta` files).
-  - Subsequent requests return `X-Cache: HIT` with `Cache-Control: public, max-age=604800` (7 days).
-  - 2MB download limit guard against malicious or oversized assets.
-  - Fallback to a transparent 1×1 GIF if the remote source fails or times out.
+### 🎧 YouTube Music Search (`/api/music`)
+1. **Search Songs (`GET /api/music/search?q=...`)**:
+   - **Query:** `q=<search keyword>` (e.g. `/api/music/search?q=Eminem`)
+   - **Status:** 200 OK (or 400 Bad Request if `q` is missing)
+   - **Returns:** An ultra-pruned list of up to 15 playable songs (80% smaller payload than raw YouTube Music API):
+     ```json
+     [
+       {
+         "videoId": "zlJ0Aj9y67c",
+         "title": "Lose Yourself",
+         "artist": "Eminem",
+         "thumbnail": "https://..."
+       }
+     ]
+     ```
 
-### 3. Health & Diagnostics (`GET /health`)
-- **Returns:** JSON object containing:
-  ```json
-  {
-    "status": "ok",
-    "active_stream_count": 0,
-    "active_pids": [],
-    "python_version": "3.13.5 ..."
-  }
-  ```
+### 📲 OrsayCast Endpoints (Video & Music Casting, Playlists & Lyrics)
+1. **Initiate Cast / Queue (`POST /cast`)**:
+   - **Body:**
+     ```json
+     {
+       "url": "https://...",
+       "type": "video" | "music",
+       "play_now": true | false,
+       "title": "Optional"
+     }
+     ```
+   - **Status:** 202 Accepted.
+   - **`type: "video"` (default):** Extracts $\le$ 720p H.264 video + AAC audio.
+   - **`type: "music"`:** Extracts pure audio-only stream (`bestaudio[ext=m4a]/bestaudio/b`), metadata (artist, title, thumbnail), and fetches synchronized LRC lyrics from the open LRCLIB API.
+2. **Playlist Queue Management**:
+   - `GET /queue`: Returns full queue list, item IDs, and current index.
+   - `POST /queue`: Add an item (`{"url": "...", "title": "...", "type": "video"|"music"}`).
+   - `POST /queue/clear` or `DELETE /queue`: Clears the queue.
+   - `DELETE /queue/<item_id>`: Removes a specific item by ID.
+3. **Track Navigation**:
+   - `POST /next` (or `GET /next`): Skips to the next video/song in the queue.
+   - `POST /previous` (or `GET /previous`): Returns to previous track (or restarts track 0).
+4. **Playback Control**:
+   - `POST /play` (or `GET /play`): Sets playback state to `'playing'`.
+   - `POST /pause` (or `GET /pause`): Sets playback state to `'paused'`.
+   - `POST /playpause` (or `GET /playpause`, `/toggle`): Toggles between play and pause.
+5. **Poll Status (`GET /status`)**:
+   - **Idle:** Returns HTTP `204 No Content` when idle and queue is empty.
+   - **Active:** Returns JSON containing:
+     ```json
+     {
+       "status": "ready",
+       "playback_state": "playing",
+       "media_type": "music",
+       "title": "Bohemian Rhapsody",
+       "artist": "Queen",
+       "thumbnail": "https://...",
+       "lyrics": "[00:00.00] ...",
+       "queue_index": 0,
+       "queue_count": 3,
+       "has_next": true,
+       "has_prev": false
+     }
+     ```
+6. **Stop Cast (`POST /stop`, `GET /stop`)**:
+   - Terminates running FFmpeg process without erasing the queue.
+7. **Casting Video / Audio Stream (`GET /cast_stream.ts`)**:
+   - **Video Mode:** Pipes stream through FFmpeg with `-c:v copy -c:a copy -f mpegts`.
+   - **Music Mode:** Drops video track with `-vn` (`-i <audio_url> -vn -c:a copy -f mpegts`) for a lightweight, black-screen audio-only MPEG-TS stream.
 
 ---
 
-## 🔌 How to Add New Routes for Future Applications
-
-To add endpoints for a new application or feature:
-
-1. Create a new file in `routes/`, e.g. `routes/my_feature.py`:
-   ```python
-   from flask import Blueprint, jsonify
-
-   my_feature_bp = Blueprint('my_feature', __name__)
-
-   @my_feature_bp.route('/my-endpoint')
-   def my_endpoint():
-       return jsonify({"message": "Hello from new app!"})
-   ```
-
-2. Register the blueprint in `routes/__init__.py`:
-   ```python
-   from .my_feature import my_feature_bp
-
-   ALL_BLUEPRINTS = [
-       stream_bp,
-       logo_bp,
-       health_bp,
-       my_feature_bp,  # <-- Added here
-   ]
-   ```
-
-3. The main `server.py` will automatically register the new routes upon startup without modifying core server logic.
-
----
-
-## 🧠 Memory & Process Management Details
+## 🧠 Memory & Process Management Details (512MB RAM VPS Optimization)
 
 Running long-term streaming proxies on resource-constrained servers (like a 512MB RAM cloud VPS or Raspberry Pi) requires aggressive cleanup:
-- **Process Groups:** On Linux, FFmpeg subprocesses run in dedicated process groups (`start_new_session=True`). When a viewer disconnects, `os.killpg(os.getpgid(proc.pid), SIGTERM)` tears down all underlying FFmpeg threads, avoiding zombie processes.
-- **glibc Memory Trimming:** Python does not automatically return freed heap memory to the Linux kernel. `core/process.py` invokes `ctypes.CDLL(libc).malloc_trim(0)` on connection close, ensuring memory drops back to baseline after streaming sessions.
-
+- **No Video Downloads:** yt-dlp only fetches stream URLs (`download=False`).
+- **Lazy Extraction:** Only the currently playing item is extracted to conserve CPU and RAM.
+- **Pure Remuxing (Zero Transcoding):** Audio-only tracks are remuxed with `-vn -c:a copy` requiring virtually 0% CPU.
+- **Pruned API Payloads:** The YouTube Music search filters to `songs` and discards all album, artist relation, and telemetry blobs, cutting JSON size by ~80% before sending to the 2015 Smart TV.
+- **Process Groups:** On Linux, FFmpeg subprocesses run in dedicated process groups (`start_new_session=True`). Disconnections invoke `os.killpg()` to eliminate orphan threads.
+- **stderr to DEVNULL:** Suppressing stderr prevents buffer leaks that trigger OOM crashes.
+- **glibc Memory Trimming:** Python invokes `ctypes.CDLL(libc).malloc_trim(0)` on stream termination and after search responses, forcing the Linux kernel to reclaim free heap memory immediately.
