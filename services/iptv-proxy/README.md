@@ -1,25 +1,27 @@
-# 🚀 IPTV & Media Proxy Server
+# 🚀 IPTV & OrsayCast Media Proxy Server
 
-A lightweight, zero-overhead Python Flask and FFmpeg proxy server designed to bridge modern IPTV streams (HLS, m3u8, TS) and media assets with legacy Samsung Orsay Smart TVs and future applications.
+A lightweight, zero-overhead Python Flask and FFmpeg proxy server designed to bridge modern IPTV streams (HLS, m3u8, TS), web video casting (OrsayCast via yt-dlp), and media assets with legacy Samsung Orsay Smart TVs and future applications.
 
 ---
 
 ## 🏗️ Architecture & Modular Structure
 
-The proxy follows a **modular Flask Blueprint** design. Each route domain lives in its own file under `routes/`, while shared system operations, process lifecycle management, and configurations reside under `core/`.
+The proxy follows a **modular Flask Blueprint** design. Each route domain lives in its own file under `routes/`, while shared system operations, process lifecycle management, state management, and configurations reside under `core/`.
 
 ```text
 services/iptv-proxy/
 ├── core/
 │   ├── config.py         # Paths, cache directories, port and host configuration
-│   └── process.py        # Subprocess tracking, process group killing, Linux malloc_trim & GC
+│   ├── process.py        # Subprocess tracking, process group killing, Linux malloc_trim & GC
+│   └── cast_manager.py   # OrsayCast single-stream state machine, threading locks & yt-dlp extraction
 ├── routes/
 │   ├── __init__.py       # Blueprint registry (register_routes)
-│   ├── stream.py         # GET /stream.ts (FFmpeg MPEG-TS live splicing & low-delay proxy)
+│   ├── stream.py         # GET /stream.ts (IPTV FFmpeg MPEG-TS live splicing & low-delay proxy)
 │   ├── logo.py           # GET /logo (Two-tier disk caching & 2MB-capped image proxy)
-│   └── health.py         # GET /health (Diagnostic health check & active stream metrics)
+│   ├── health.py         # GET /health (Diagnostic health check & active stream metrics)
+│   └── cast.py           # POST /cast, GET /status, POST /stop, GET /cast_stream.ts (OrsayCast)
 ├── server.py             # Main entry point & application controller (create_app factory)
-└── requirements.txt      # Python dependencies (Flask)
+└── requirements.txt      # Python dependencies (Flask, yt-dlp)
 ```
 
 ---
@@ -57,70 +59,33 @@ gunicorn -w 4 -b 0.0.0.0:7833 "server:app"
 
 ## 📡 API Endpoints
 
-### 1. Live Video Stream (`GET /stream.ts?b64=...`)
-- **Query Parameter:** `b64` (Base64-encoded stream URL, e.g. HLS `.m3u8` or raw stream).
-- **MIME Type:** `video/MP2T`
-- **Features:**
-  - FFmpeg remuxing directly to raw MPEG-TS with zero re-encoding CPU overhead (`-c:v copy -c:a copy`).
-  - Low-latency probing (`-probesize 1MB`, `-analyzeduration 1.5s`, `-fflags +nobuffer+flush_packets+fastseek`).
-  - `read1(65536)` unbuffered packet flushing so the TV starts playing instantly without waiting for a full 64KB buffer.
-  - Automatic stream termination and memory cleanup via `Response.call_on_close()` and generator teardown.
+### 📺 IPTV Endpoints
+1. **Live Video Stream (`GET /stream.ts?b64=...`)**:
+   - Remuxes input stream into raw MPEG-TS with zero re-encoding.
+2. **Channel Logo Proxy & Cache (`GET /logo?b64=...`)**:
+   - Disk-backed two-tier caching under `cache/logos/` with 2MB security cap.
+3. **Health & Diagnostics (`GET /health`)**:
+   - Active streams and system status check.
 
-### 2. Channel Logo Proxy & Cache (`GET /logo?b64=...`)
-- **Query Parameter:** `b64` (Base64-encoded original image URL).
-- **Features:**
-  - Disk-backed two-tier caching under `cache/logos/` (`.img` and `.meta` files).
-  - Subsequent requests return `X-Cache: HIT` with `Cache-Control: public, max-age=604800` (7 days).
-  - 2MB download limit guard against malicious or oversized assets.
-  - Fallback to a transparent 1×1 GIF if the remote source fails or times out.
-
-### 3. Health & Diagnostics (`GET /health`)
-- **Returns:** JSON object containing:
-  ```json
-  {
-    "status": "ok",
-    "active_stream_count": 0,
-    "active_pids": [],
-    "python_version": "3.13.5 ..."
-  }
-  ```
+### 📲 OrsayCast Endpoints (Phase 1)
+1. **Initiate Cast (`POST /cast`)**:
+   - **Body:** `{"url": "https://..."}`
+   - **Status:** 202 Accepted `{"message": "Extraction started"}`
+   - Resets any previous stream, updates state to `'extracting'`, and launches a background thread to extract stream metadata with `yt-dlp` (strictly `download=False`, pre-muxed $\le$ 720p).
+2. **Poll Status (`GET /status`)**:
+   - **Idle:** Returns HTTP `204 No Content`.
+   - **Active:** Returns JSON with current state (e.g. `{"status": "ready", "original_url": "..."}`).
+3. **Stop Cast (`POST /stop`)**:
+   - Terminates running FFmpeg processes, clears state, resets to `'idle'`, and triggers glibc heap trim.
+4. **Casting Video Stream (`GET /cast_stream.ts`)**:
+   - Pipes the extracted direct URL through FFmpeg into raw MPEG-TS with unbuffered `read1(65536)` streaming.
 
 ---
 
-## 🔌 How to Add New Routes for Future Applications
-
-To add endpoints for a new application or feature:
-
-1. Create a new file in `routes/`, e.g. `routes/my_feature.py`:
-   ```python
-   from flask import Blueprint, jsonify
-
-   my_feature_bp = Blueprint('my_feature', __name__)
-
-   @my_feature_bp.route('/my-endpoint')
-   def my_endpoint():
-       return jsonify({"message": "Hello from new app!"})
-   ```
-
-2. Register the blueprint in `routes/__init__.py`:
-   ```python
-   from .my_feature import my_feature_bp
-
-   ALL_BLUEPRINTS = [
-       stream_bp,
-       logo_bp,
-       health_bp,
-       my_feature_bp,  # <-- Added here
-   ]
-   ```
-
-3. The main `server.py` will automatically register the new routes upon startup without modifying core server logic.
-
----
-
-## 🧠 Memory & Process Management Details
+## 🧠 Memory & Process Management Details (512MB RAM VPS Optimization)
 
 Running long-term streaming proxies on resource-constrained servers (like a 512MB RAM cloud VPS or Raspberry Pi) requires aggressive cleanup:
-- **Process Groups:** On Linux, FFmpeg subprocesses run in dedicated process groups (`start_new_session=True`). When a viewer disconnects, `os.killpg(os.getpgid(proc.pid), SIGTERM)` tears down all underlying FFmpeg threads, avoiding zombie processes.
-- **glibc Memory Trimming:** Python does not automatically return freed heap memory to the Linux kernel. `core/process.py` invokes `ctypes.CDLL(libc).malloc_trim(0)` on connection close, ensuring memory drops back to baseline after streaming sessions.
-
+- **No Video Downloads:** yt-dlp only fetches stream URLs (`download=False`).
+- **Process Groups:** On Linux, FFmpeg subprocesses run in dedicated process groups (`start_new_session=True`). Disconnections invoke `os.killpg()` to eliminate orphan threads.
+- **stderr to DEVNULL:** Suppressing stderr prevents buffer leaks that trigger OOM crashes.
+- **glibc Memory Trimming:** Python invokes `ctypes.CDLL(libc).malloc_trim(0)` on stream termination, forcing the Linux kernel to reclaim free heap memory immediately.
