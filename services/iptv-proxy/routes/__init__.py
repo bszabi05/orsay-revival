@@ -4,6 +4,7 @@ from flask import Flask
 from .cast import cast_bp
 from .health import health_bp
 from .logo import logo_bp
+from .music import music_bp
 from .stream import stream_bp
 
 ALL_BLUEPRINTS = [
@@ -11,6 +12,7 @@ ALL_BLUEPRINTS = [
     logo_bp,
     health_bp,
     cast_bp,
+    music_bp,
 ]
 
 

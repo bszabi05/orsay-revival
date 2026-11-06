@@ -1,6 +1,6 @@
 # 🚀 IPTV & OrsayCast Media Proxy Server
 
-A lightweight, zero-overhead Python Flask and FFmpeg proxy server designed to bridge modern IPTV streams (HLS, m3u8, TS), web video & music casting with playlist queuing and synchronized lyrics (OrsayCast via yt-dlp & LRCLIB), and media assets with legacy Samsung Orsay Smart TVs and future applications.
+A lightweight, zero-overhead Python Flask and FFmpeg proxy server designed to bridge modern IPTV streams (HLS, m3u8, TS), web video & music casting with playlist queuing and synchronized lyrics (OrsayCast via yt-dlp & LRCLIB), on-TV music search (YouTube Music via ytmusicapi), and media assets with legacy Samsung Orsay Smart TVs and future applications.
 
 ---
 
@@ -19,9 +19,10 @@ services/iptv-proxy/
 │   ├── stream.py         # GET /stream.ts (IPTV FFmpeg MPEG-TS live splicing & low-delay proxy)
 │   ├── logo.py           # GET /logo (Two-tier disk caching & 2MB-capped image proxy)
 │   ├── health.py         # GET /health (Diagnostic health check & active stream metrics)
-│   └── cast.py           # /cast, /queue, /next, /previous, /play, /pause, /status, /cast_stream.ts
+│   ├── cast.py           # /cast, /queue, /next, /previous, /play, /pause, /status, /cast_stream.ts
+│   └── music.py          # GET /api/music/search (YouTube Music search for native Orsay TV client)
 ├── server.py             # Main entry point & application controller (create_app factory)
-└── requirements.txt      # Python dependencies (Flask, yt-dlp)
+└── requirements.txt      # Python dependencies (Flask, yt-dlp, ytmusicapi)
 ```
 
 ---
@@ -66,6 +67,22 @@ gunicorn -w 4 -b 0.0.0.0:7833 "server:app"
    - Disk-backed two-tier caching under `cache/logos/` with 2MB security cap.
 3. **Health & Diagnostics (`GET /health`)**:
    - Active streams and system status check.
+
+### 🎧 YouTube Music Search (`/api/music`)
+1. **Search Songs (`GET /api/music/search?q=...`)**:
+   - **Query:** `q=<search keyword>` (e.g. `/api/music/search?q=Eminem`)
+   - **Status:** 200 OK (or 400 Bad Request if `q` is missing)
+   - **Returns:** An ultra-pruned list of up to 15 playable songs (80% smaller payload than raw YouTube Music API):
+     ```json
+     [
+       {
+         "videoId": "zlJ0Aj9y67c",
+         "title": "Lose Yourself",
+         "artist": "Eminem",
+         "thumbnail": "https://..."
+       }
+     ]
+     ```
 
 ### 📲 OrsayCast Endpoints (Video & Music Casting, Playlists & Lyrics)
 1. **Initiate Cast / Queue (`POST /cast`)**:
@@ -125,6 +142,7 @@ Running long-term streaming proxies on resource-constrained servers (like a 512M
 - **No Video Downloads:** yt-dlp only fetches stream URLs (`download=False`).
 - **Lazy Extraction:** Only the currently playing item is extracted to conserve CPU and RAM.
 - **Pure Remuxing (Zero Transcoding):** Audio-only tracks are remuxed with `-vn -c:a copy` requiring virtually 0% CPU.
+- **Pruned API Payloads:** The YouTube Music search filters to `songs` and discards all album, artist relation, and telemetry blobs, cutting JSON size by ~80% before sending to the 2015 Smart TV.
 - **Process Groups:** On Linux, FFmpeg subprocesses run in dedicated process groups (`start_new_session=True`). Disconnections invoke `os.killpg()` to eliminate orphan threads.
 - **stderr to DEVNULL:** Suppressing stderr prevents buffer leaks that trigger OOM crashes.
-- **glibc Memory Trimming:** Python invokes `ctypes.CDLL(libc).malloc_trim(0)` on stream termination, forcing the Linux kernel to reclaim free heap memory immediately.
+- **glibc Memory Trimming:** Python invokes `ctypes.CDLL(libc).malloc_trim(0)` on stream termination and after search responses, forcing the Linux kernel to reclaim free heap memory immediately.
