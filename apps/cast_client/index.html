@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta name="viewport" content="width=960, height=540" />
+  <title>OrsayCast</title>
+  <link rel="stylesheet" type="text/css" href="css/style.css" />
+
+  <!-- Samsung Orsay Common Widget & Key APIs -->
+  <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/Widget.js"></script>
+  <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/TVKeyValue.js"></script>
+
+  <!-- User server configuration -->
+  <script type="text/javascript" src="config.js"></script>
+
+  <!-- Application Logic (Strict ES5 for WebKit 534/537) -->
+  <script type="text/javascript" src="js/main.js"></script>
+</head>
+<body onload="App.init();">
+  <div id="appContainer">
+
+    <!-- Standby Layer (Idle screensaver) -->
+    <div id="standbyLayer">
+      <div class="standbyContent">
+        <div class="castLogoBox">
+          <div class="castLogoBadge">
+            <span class="castDot"></span>
+            <span class="castLogoText">ORSAY<span class="highlight">CAST</span></span>
+          </div>
+        </div>
+
+        <div id="clockDisplay">--:--</div>
+        <div id="dateDisplay">Loading...</div>
+
+        <div class="standbyMessageContainer">
+          <div id="standbyStatus">Ready to Cast</div>
+          <div id="standbySubtext">Send video or music from your phone or browser</div>
+        </div>
+
+        <div class="serverInfoBadge">
+          <span id="serverDot" class="serverDot disconnected"></span>
+          <span id="serverUrlLabel">Server: Checking...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Player Layer (Active Video/Audio Playback) -->
+    <div id="playerLayer" style="display: none;">
+      <!-- HTML5 Video element with explicit dimensions for Orsay hardware surface -->
+      <video id="videoPlayer" preload="none" style="position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 21; background: #000; object-fit: contain;"></video>
+
+      <!-- Music Visualizer / Lyrics Backdrop (shown when media_type is 'music') -->
+      <div id="musicBackdrop" style="display: none;">
+        <div class="musicCard">
+          <div class="musicCoverWrap">
+            <img id="musicCover" src="" alt="" onerror="this.style.display='none';" />
+          </div>
+          <div class="musicTrackDetails">
+            <div id="musicTitle" class="musicTitle">Track Title</div>
+            <div id="musicArtist" class="musicArtist">Artist Name</div>
+            <div id="lyricsContainer" class="lyricsContainer" style="display: none;">
+              <div id="lyricsContent" class="lyricsContent"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OSD Banner (Shows on stream start, auto-hides) -->
+      <div id="playerOsd" class="osdHidden">
+        <div class="osdBadge">ORSAYCAST</div>
+        <div id="osdTitle" class="osdTitle">Loading media...</div>
+        <div id="osdQueueStatus" class="osdSubtitle"></div>
+      </div>
+
+      <!-- Pause Indicator Overlay -->
+      <div id="pauseIndicator" style="display: none;">
+        <div class="pauseIcon">&#10074;&#10074;</div>
+        <div class="pauseText">PAUSED</div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
+

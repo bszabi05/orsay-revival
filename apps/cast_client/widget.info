@@ -1,0 +1,9 @@
+# Application Size Setting
+Application Size = 960x540
+
+# Screen Setting
+Screen Number = 1
+Screen Resolution = 960x540
+
+# Alpha Blending Setting
+Use Alpha Blending? = Yes
