@@ -13,6 +13,12 @@
    Global Configuration & Hardware APIs
    ========================================================================== */
 
+if (!String.prototype.trim) {
+  String.prototype.trim = function () {
+    return this.replace(/^\s+|\s+$/g, '');
+  };
+}
+
 var SERVER_URL = ((typeof AppConfig !== 'undefined' && AppConfig.serverUrl) ?
                  AppConfig.serverUrl : 'http://127.0.0.1:7833').replace(/\/+$/, '');
 
@@ -297,9 +303,10 @@ var App = {
   setPlayerMode: function (data) {
     if (!data) return;
 
-    var streamUrl = data.stream_url ? data.stream_url : (SERVER_URL + '/cast_stream.ts');
+    var streamBase = data.stream_url ? data.stream_url : (SERVER_URL + '/cast_stream.ts');
+    var streamUrl = streamBase + (streamBase.indexOf('?') === -1 ? '?_t=' : '&_t=') + (new Date().getTime());
     var contentKey = (data.original_url || data.title) ?
-                     (data.original_url + '::' + (data.title || '')) : streamUrl;
+                     (data.original_url + '::' + (data.title || '')) : streamBase;
 
     var isNewTrack = (!this.isPlaying) || (this.currentContentKey !== contentKey);
 

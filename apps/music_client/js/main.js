@@ -13,6 +13,12 @@
    Global Configuration & Hardware APIs
    ========================================================================== */
 
+if (!String.prototype.trim) {
+  String.prototype.trim = function () {
+    return this.replace(/^\s+|\s+$/g, '');
+  };
+}
+
 var SERVER_URL = ((typeof AppConfig !== 'undefined' && AppConfig.serverUrl) ?
                  AppConfig.serverUrl : 'http://127.0.0.1:7833').replace(/\/+$/, '');
 
@@ -44,7 +50,7 @@ try {
 
 var App = {
   currentView: 'search',          // 'search' | 'player'
-  focusTarget: 'pills',           // 'input' | 'pills' | 'cards' | 'miniplayer'
+  focusTarget: 'input',           // 'input' | 'pills' | 'cards' | 'miniplayer'
   playerTab: 'lyrics',            // 'lyrics' | 'queue'
   playerFocus: 'controls',        // 'controls' | 'queue'
   activePillIndex: 0,
@@ -89,8 +95,12 @@ var App = {
       widgetAPI.sendReadyEvent();
     }
 
-    /* Start with first genre pill selected and load initial popular tracks */
-    this.selectPill(0, false);
+    /* Start with search input active and focused for instant typing */
+    this.setInputFocus();
+
+    /* Load initial popular tracks in background without blurring input */
+    var selected = this.pills[0];
+    this.searchMusic(selected.query, selected.name);
 
     /* Start background status polling */
     this.pollStatus();
@@ -102,26 +112,26 @@ var App = {
     if (tvKey) {
       for (var k in tvKey) {
         if (tvKey.hasOwnProperty(k) && typeof tvKey[k] === 'number') {
-          var val = tvKey[k];
-          // Skip standard alphanumeric characters so input typing is NOT blocked by Orsay
-          if ((val >= 48 && val <= 57) || (val >= 65 && val <= 90) || (val >= 97 && val <= 122)) {
-            continue;
-          }
           try {
-            pluginAPI.registKey(val);
+            pluginAPI.registKey(tvKey[k]);
           } catch (e1) {}
         }
       }
     }
 
-    // Only register essential remote navigation and media keys
-    var navKeys = [
-      8, 13, 27, 32, 33, 34, 37, 38, 39, 40,
+    // Register all alphanumeric and navigation keys so TV OS does not drop keyboard strokes
+    var customKeys = [
+      65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77,
+      78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90,
+      48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
+      96, 97, 98, 99, 100, 101, 102, 103, 104, 105,
+      8, 13, 27, 32, 33, 34, 37, 38, 39, 40, 45, 46,
+      107, 109, 187, 189,
       404, 412, 413, 415, 417, 10009, 10182, 10252, 10253, 10254
     ];
-    for (var i = 0; i < navKeys.length; i++) {
+    for (var i = 0; i < customKeys.length; i++) {
       try {
-        pluginAPI.registKey(navKeys[i]);
+        pluginAPI.registKey(customKeys[i]);
       } catch (e2) {}
     }
   },
@@ -184,9 +194,10 @@ var App = {
   submitSearch: function () {
     var input = document.getElementById('search-input');
     var query = input ? input.value : '';
+    query = (query || '').replace(/^\s+|\s+$/g, '');
     this.blurInput();
-    if (query && query.trim()) {
-      this.searchMusic(query.trim());
+    if (query) {
+      this.searchMusic(query);
     }
   },
 
@@ -1382,6 +1393,17 @@ var App = {
           }
         }
 
+        var isLetter = (code >= 65 && code <= 90);
+        var isDigit = (code >= 48 && code <= 57);
+        var isNumpad = (code >= 96 && code <= 105);
+        var isSpace = (code === 32);
+        var isBackspace = (code === 8 || code === 46);
+
+        /* Auto-switch to search input if typing any alphanumeric key while in search view */
+        if ((isLetter || isDigit || isNumpad || isSpace) && self.focusTarget !== 'input') {
+          self.setInputFocus();
+        }
+
         /* ==================================================================
            Focus Target: INPUT
            ================================================================== */
@@ -1399,6 +1421,45 @@ var App = {
             if (event.preventDefault) event.preventDefault();
             event.returnValue = false;
             return false;
+          }
+
+          var inputEl = document.getElementById('search-input');
+
+          if (isBackspace) {
+            if (inputEl) {
+              var valBeforeBk = inputEl.value || '';
+              setTimeout(function () {
+                if (inputEl.value === valBeforeBk && valBeforeBk.length > 0) {
+                  inputEl.value = valBeforeBk.substring(0, valBeforeBk.length - 1);
+                }
+              }, 0);
+            }
+            return true;
+          }
+
+          if (isLetter || isDigit || isNumpad || isSpace) {
+            if (inputEl) {
+              var valBeforeChar = inputEl.value || '';
+              var charToInsert = '';
+              if (isLetter) {
+                charToInsert = String.fromCharCode(event.shiftKey ? code : (code + 32));
+              } else if (isDigit) {
+                charToInsert = String.fromCharCode(code);
+              } else if (isNumpad) {
+                charToInsert = String.fromCharCode(code - 48);
+              } else if (isSpace) {
+                charToInsert = ' ';
+              }
+
+              if (charToInsert) {
+                setTimeout(function () {
+                  if (inputEl.value === valBeforeChar) {
+                    inputEl.value = valBeforeChar + charToInsert;
+                  }
+                }, 0);
+              }
+            }
+            return true;
           }
 
           // Let alphanumeric and editing keys pass directly to the input element

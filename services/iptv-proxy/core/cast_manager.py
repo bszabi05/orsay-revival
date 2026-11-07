@@ -183,7 +183,7 @@ class CastManager:
         """Check if a direct stream is ready for playback."""
         with self.lock:
             curr = self.current_item()
-            return bool(curr and curr.direct_stream_url and self.status in ('ready', 'playing'))
+            return bool(curr and (curr.direct_stream_url or curr.direct_audio_url))
 
     def set_active_process(self, proc: Any) -> None:
         """Set the active FFmpeg process and update status to 'playing'."""
@@ -195,17 +195,12 @@ class CastManager:
                 curr.status = 'playing'
 
     def stop_active_stream(self) -> None:
-        """Terminate the active FFmpeg process without resetting the whole queue."""
+        """Terminate the active FFmpeg process without resetting the playback state or queue item."""
         proc = None
         with self.lock:
             if self.active_process is not None:
                 proc = self.active_process
                 self.active_process = None
-            if self.status == 'playing':
-                self.status = 'idle'
-                curr = self.current_item()
-                if curr and curr.status == 'playing':
-                    curr.status = 'played'
 
         if proc is not None:
             kill_process(proc)

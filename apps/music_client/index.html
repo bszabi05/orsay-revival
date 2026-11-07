@@ -20,9 +20,6 @@
 <body onload="App.init();" tabindex="0">
   <div id="appContainer">
 
-    <!-- Hardware Video/Audio Plane for Samsung Orsay Media Engine (Always 960x540 viewport) -->
-    <video id="music-player" style="position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 1; background: #000000;"></video>
-
     <!-- ====================================================================
          1. SEARCH & BROWSE VIEW (Spotify TV Style)
          ==================================================================== -->
@@ -42,7 +39,7 @@
         <!-- Search Input with Search Icon -->
         <div class="search-box-wrap" onclick="App.setInputFocus();">
           <span class="search-lens">&#128269;</span>
-          <input type="text" id="search-input" placeholder="What do you want to listen to?" autocomplete="off" onclick="App.setInputFocus();" onfocus="App.setInputFocus();" />
+          <input type="text" id="search-input" tabindex="0" placeholder="What do you want to listen to?" autocomplete="off" onclick="App.setInputFocus();" onfocus="App.setInputFocus();" />
           <span id="search-clear-btn" class="search-clear-hint" onclick="App.onSearchBtnClick();">&#128269; Search</span>
         </div>
       </div>
@@ -111,6 +108,9 @@
          2. PLAYER & KARAOKE LYRICS VIEW (Spotify Full-Screen Player)
          ==================================================================== -->
     <div id="player-view" style="display: none;">
+      <!-- Hardware Video/Audio Plane for Samsung Orsay Media Engine (Hidden 1px to avoid compositor freeze) -->
+      <video id="music-player" style="position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0.01; z-index: 1; pointer-events: none;"></video>
+
       <!-- Dynamic Blurred Backdrop using Album Cover -->
       <div id="player-bg" class="player-bg"></div>
       <div class="player-dark-overlay"></div>

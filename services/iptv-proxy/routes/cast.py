@@ -218,8 +218,23 @@ def stop():
 @cast_bp.route('/cast_stream.ts', methods=['GET'])
 def cast_stream():
     """Remux the extracted stream URL(s) directly into MPEG-TS for the Orsay TV player."""
+    import time
+
+    curr = cast_manager.current_item()
+    if not curr:
+        return "No stream ready to cast", 400
+
+    # If background extraction is in progress, wait up to 10 seconds instead of immediately failing with 400
+    for _ in range(50):
+        if cast_manager.status == 'extracting' or (curr and curr.status == 'extracting'):
+            time.sleep(0.2)
+        else:
+            break
+
     inputs = cast_manager.get_stream_inputs()
-    if not inputs or not cast_manager.is_ready_or_playing():
+    if not inputs:
+        if curr and curr.error:
+            return f"Extraction failed: {curr.error}", 500
         return "No stream ready to cast", 400
 
     media_type = cast_manager.get_media_type()
@@ -265,7 +280,6 @@ def cast_stream():
 
     ffmpeg_cmd.extend([
         '-c:v', 'copy',
-        '-bsf:v', 'h264_mp4toannexb',
         '-c:a', 'aac',
         '-b:a', '192k',
         '-ar', '44100',
