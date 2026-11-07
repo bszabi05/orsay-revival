@@ -55,7 +55,6 @@ var App = {
   recommendedTracks: [],
   currentVideoId: '',
   currentContentKey: '',
-  ime: null,
   currentLyricsRaw: '',
   lyricsList: [],
   activeLyricIndex: -1,
@@ -81,7 +80,6 @@ var App = {
   init: function () {
     this.videoElement = document.getElementById('music-player');
 
-    this.initIme();
     this.installKeyHandler();
     this.registerKeys();
     this.bindVideoEvents();
@@ -96,45 +94,6 @@ var App = {
 
     /* Start background status polling */
     this.pollStatus();
-  },
-
-  initIme: function () {
-    var self = this;
-    if (typeof IMEShell === 'undefined') {
-      this.log('IMEShell is not defined in this environment (PC/browser)');
-      return;
-    }
-
-    try {
-      this.ime = new IMEShell('search-input', function () {
-        self.log('Samsung TV IME ready callback fired');
-        if (!self.ime) return;
-
-        if (self.ime.setEnterFunc) {
-          self.ime.setEnterFunc(function () {
-            self.submitSearch();
-          });
-        }
-
-        if (self.ime.setKeyFunc) {
-          var KEY_DOWN = (tvKey && tvKey.KEY_DOWN) ? tvKey.KEY_DOWN : 40;
-          var KEY_RETURN = (tvKey && tvKey.KEY_RETURN) ? tvKey.KEY_RETURN : 10009;
-
-          self.ime.setKeyFunc(KEY_DOWN, function () {
-            self.blurInput();
-            self.setPillFocus(self.activePillIndex);
-            return false;
-          });
-
-          self.ime.setKeyFunc(KEY_RETURN, function () {
-            self.blurInput();
-            return false;
-          });
-        }
-      }, 'en');
-    } catch (imeErr) {
-      this.log('Failed to instantiate IMEShell: ' + imeErr);
-    }
   },
 
   registerKeys: function () {
@@ -202,15 +161,9 @@ var App = {
     var input = document.getElementById('search-input');
     if (input) {
       input.className = 'active';
-      if (this.ime && this.ime.focus) {
-        try {
-          this.ime.focus();
-        } catch (fErr) {
-          try { input.focus(); } catch (e) {}
-        }
-      } else {
-        try { input.focus(); } catch (e) {}
-      }
+      try {
+        input.focus();
+      } catch (e) {}
     }
 
     this.clearCardFocus();
@@ -220,24 +173,17 @@ var App = {
 
   blurInput: function () {
     var input = document.getElementById('search-input');
-    if (this.ime && this.ime.blur) {
-      try { this.ime.blur(); } catch (e) {}
-    }
     if (input) {
       input.className = '';
-      try { input.blur(); } catch (e) {}
+      try {
+        input.blur();
+      } catch (e) {}
     }
   },
 
   submitSearch: function () {
     var input = document.getElementById('search-input');
-    var query = '';
-    if (this.ime && this.ime.getText) {
-      try { query = this.ime.getText(); } catch (e) {}
-    }
-    if (!query && input) {
-      query = input.value;
-    }
+    var query = input ? input.value : '';
     this.blurInput();
     if (query && query.trim()) {
       this.searchMusic(query.trim());
