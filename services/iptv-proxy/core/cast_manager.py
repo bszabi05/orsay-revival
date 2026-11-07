@@ -183,7 +183,7 @@ class CastManager:
         """Check if a direct stream is ready for playback."""
         with self.lock:
             curr = self.current_item()
-            return bool(curr and curr.direct_stream_url and self.status in ('ready', 'playing'))
+            return bool(curr and (curr.direct_stream_url or curr.direct_audio_url))
 
     def set_active_process(self, proc: Any) -> None:
         """Set the active FFmpeg process and update status to 'playing'."""
@@ -195,17 +195,12 @@ class CastManager:
                 curr.status = 'playing'
 
     def stop_active_stream(self) -> None:
-        """Terminate the active FFmpeg process without resetting the whole queue."""
+        """Terminate the active FFmpeg process without resetting the playback state or queue item."""
         proc = None
         with self.lock:
             if self.active_process is not None:
                 proc = self.active_process
                 self.active_process = None
-            if self.status == 'playing':
-                self.status = 'idle'
-                curr = self.current_item()
-                if curr and curr.status == 'playing':
-                    curr.status = 'played'
 
         if proc is not None:
             kill_process(proc)
@@ -427,16 +422,29 @@ class CastManager:
         try:
             import yt_dlp
 
-            # 1. Dynamic yt-dlp format selection based on media_type:
-            # - Music mode: Audio-only stream (M4A / AAC preferred)
-            # - Video mode: Pre-muxed or H.264+AAC <=720p for Orsay TV
+            # 1. Format selection strictly optimized for Samsung Smart TV Orsay hardware decoder:
+            # - Samsung Orsay (2012-2015) hardware decoder natively supports H.264 (avc1) <= 720p + AAC (mp4a).
+            # - Does NOT support VP9 or Opus in MPEG-TS.
+            # - Requires a video stream even for music playback because HTML5 <video> hardware pipeline
+            #   requires video keyframes (SPS/PPS) to initialize clock and surface preroll.
             if media_type == 'music':
-                format_selector = 'bestaudio[ext=m4a]/bestaudio/b'
+                format_selector = (
+                    'bestvideo[height<=720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/'
+                    'best[height<=720][vcodec^=avc1][acodec^=mp4a]/'
+                    'best[height<=720][ext=mp4]/'
+                    'bestvideo[height<=480][vcodec^=avc1]+bestaudio[acodec^=mp4a]/'
+                    'best[height<=480][ext=mp4]/'
+                    'bestaudio[acodec^=mp4a]/bestaudio[ext=m4a]/bestaudio/best'
+                )
             else:
                 format_selector = (
-                    'best[height<=720][ext=mp4]/'
                     'bestvideo[height<=720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/'
-                    'bestvideo[height<=720]+bestaudio/'
+                    'best[height<=720][vcodec^=avc1][acodec^=mp4a]/'
+                    'best[height<=720][ext=mp4]/'
+                    'bestvideo[height<=720][vcodec^=avc1]+bestaudio/'
+                    'bestvideo[height<=480][vcodec^=avc1]+bestaudio[acodec^=mp4a]/'
+                    'best[height<=480][ext=mp4]/'
+                    'best[ext=mp4]/'
                     'best'
                 )
 

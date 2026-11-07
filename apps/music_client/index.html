@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta name="viewport" content="width=960, height=540" />
+  <title>Music TV</title>
+  <link rel="stylesheet" type="text/css" href="css/style.css" />
+
+  <!-- Samsung Orsay Common Widget & Key APIs -->
+  <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/Widget.js"></script>
+  <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/TVKeyValue.js"></script>
+  <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/Plugin.js"></script>
+
+  <!-- User server configuration -->
+  <script type="text/javascript" src="config.js"></script>
+
+  <!-- Application Logic (Strict ES5 for WebKit 534/537) -->
+  <script type="text/javascript" src="js/main.js"></script>
+</head>
+<body onload="App.init();" tabindex="0">
+  <div id="appContainer">
+
+    <!-- ====================================================================
+         1. SEARCH & BROWSE VIEW (Spotify TV Style)
+         ==================================================================== -->
+    <div id="search-view">
+      <!-- Spotify Top Bar -->
+      <div class="top-nav-bar">
+        <!-- Logo -->
+        <div class="brand-logo" onclick="App.selectPill(0, false);">
+          <span class="spotify-icon">
+            <span class="wave-1"></span>
+            <span class="wave-2"></span>
+            <span class="wave-3"></span>
+          </span>
+          <span class="brand-text">MUSIC<span class="green-text">TV</span></span>
+        </div>
+
+        <!-- Search Input with Search Icon -->
+        <div class="search-box-wrap" onclick="App.setInputFocus();">
+          <span class="search-lens">&#128269;</span>
+          <input type="text" id="search-input" tabindex="0" placeholder="What do you want to listen to?" autocomplete="off" onclick="App.setInputFocus();" onfocus="App.setInputFocus();" />
+          <span id="search-clear-btn" class="search-clear-hint" onclick="App.onSearchBtnClick();">&#128269; Search</span>
+        </div>
+      </div>
+
+      <!-- Quick Genre Pills / Filter Row -->
+      <div class="filter-pills-bar">
+        <div id="pill-0" class="filter-pill active-pill" onclick="App.onPillClick(0);">Top Hits</div>
+        <div id="pill-1" class="filter-pill" onclick="App.onPillClick(1);">Pop</div>
+        <div id="pill-2" class="filter-pill" onclick="App.onPillClick(2);">Rock</div>
+        <div id="pill-3" class="filter-pill" onclick="App.onPillClick(3);">Hip-Hop</div>
+        <div id="pill-4" class="filter-pill" onclick="App.onPillClick(4);">Chill</div>
+        <div id="pill-5" class="filter-pill" onclick="App.onPillClick(5);">Magyar Dalok</div>
+      </div>
+
+      <!-- Section Title & Status -->
+      <div class="section-header">
+        <span id="results-heading" class="section-title">Popular Tracks</span>
+        <span id="search-status" class="section-status">Loading popular music...</span>
+      </div>
+
+      <!-- Results Grid Viewport (Masked scrollable window with mouse wheel support) -->
+      <div id="results-viewport" class="results-viewport" onwheel="App.onGridWheel(event);">
+        <div id="results-grid" class="results-grid">
+          <!-- Dynamically populated Spotify-style song cards -->
+        </div>
+      </div>
+
+      <!-- Floating Mouse Scroll Buttons -->
+      <div id="grid-scroll-up" class="grid-scroll-btn scroll-up" onclick="App.scrollGrid(-1);" title="Scroll Up">&#9650;</div>
+      <div id="grid-scroll-down" class="grid-scroll-btn scroll-down" onclick="App.scrollGrid(1);" title="Scroll Down">&#9660;</div>
+
+      <!-- Persistent Bottom Mini-Player Bar (shown when audio is playing in background) -->
+      <div id="mini-player-bar" class="mini-player-bar" style="display: none;" onclick="App.showPlayerView();">
+        <div class="mini-left">
+          <img id="mini-cover" class="mini-cover" src="icon.png" alt="" onerror="this.src='icon.png';" />
+          <div class="mini-track-meta">
+            <div id="mini-title" class="mini-title">Track Title</div>
+            <div id="mini-artist" class="mini-artist">Artist Name</div>
+          </div>
+        </div>
+
+        <div class="mini-center">
+          <div class="mini-controls">
+            <span id="mini-play-btn" class="mini-btn-play" onclick="event.stopPropagation(); App.sendPlayPause();">&#9658;</span>
+          </div>
+          <div class="mini-progress-track">
+            <div id="mini-progress-bar" class="mini-progress-fill"></div>
+          </div>
+        </div>
+
+        <div class="mini-right">
+          <span class="mini-expand-hint"><span class="key-badge">&#9650; UP</span> Open Lyrics &amp; Player</span>
+        </div>
+      </div>
+
+      <!-- Bottom Remote Key Hints Footer (shown when mini player is hidden) -->
+      <div id="search-footer" class="search-footer">
+        <span class="footer-tip"><span class="key-badge">ARROWS</span> Navigate</span>
+        <span class="footer-tip"><span class="key-badge">ENTER</span> Play Track</span>
+        <span class="footer-tip"><span class="key-badge">RETURN</span> Back / Exit</span>
+        <span id="server-status-label" class="server-status">Server: Checking...</span>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         2. PLAYER & KARAOKE LYRICS VIEW (Spotify Full-Screen Player)
+         ==================================================================== -->
+    <div id="player-view" style="display: none;">
+      <!-- Hardware Video/Audio Plane for Samsung Orsay Media Engine (Hidden 1px to avoid compositor freeze) -->
+      <video id="music-player" style="position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0.01; z-index: 1; pointer-events: none;"></video>
+
+      <!-- Dynamic Blurred Backdrop using Album Cover -->
+      <div id="player-bg" class="player-bg"></div>
+      <div class="player-dark-overlay"></div>
+
+      <!-- Left Column: Album Art, Track Meta & Playback Controls -->
+      <div class="player-left-col">
+        <!-- Sharp Album Cover with Soft Spotify Shadow -->
+        <div class="cover-wrapper">
+          <img id="player-cover" class="player-cover" src="icon.png" alt="" onerror="this.src='icon.png';" />
+          <div id="player-badge" class="player-badge">PLAYING</div>
+        </div>
+
+        <!-- Track Title & Artist -->
+        <div class="player-metadata">
+          <div id="player-title" class="player-title">Track Title</div>
+          <div id="player-artist" class="player-artist">Artist Name</div>
+        </div>
+
+        <!-- Spotify Progress Bar & Time Stamps -->
+        <div class="player-progress-container">
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-bg">
+              <div id="progress-bar-fill" class="progress-bar-fill"></div>
+            </div>
+          </div>
+          <div class="progress-time-row">
+            <span id="time-current" class="time-label">0:00</span>
+            <span id="time-total" class="time-label">--:--</span>
+          </div>
+        </div>
+
+        <!-- Interactive Remote Controls Bar -->
+        <div class="player-controls-row">
+          <div id="ctrl-prev-btn" class="ctrl-btn-small" onclick="App.previousTrack();"><span class="key-badge">&#9664;&#9664;</span> Prev</div>
+          <div id="player-play-btn" class="ctrl-btn-play" onclick="App.sendPlayPause();"><span id="play-symbol">&#10074;&#10074;</span></div>
+          <div id="ctrl-next-btn" class="ctrl-btn-small" onclick="App.playNextAuto();">Next <span class="key-badge">&#9654;&#9654;</span></div>
+        </div>
+
+        <!-- Navigation Tips -->
+        <div class="player-footer-hints">
+          <span class="hint-item"><span class="key-badge">ENTER</span> Play / Pause</span>
+          <span class="hint-item"><span class="key-badge">&#9664; / &#9654;</span> Prev / Next</span>
+          <span class="hint-item"><span class="key-badge">GREEN</span> Lyrics / Queue</span>
+          <span class="hint-item"><span class="key-badge">RETURN</span> Browse</span>
+        </div>
+      </div>
+
+      <!-- Right Column: Spotify Lyrics & Up Next Queue Panel -->
+      <div class="player-right-col">
+        <div class="lyrics-card">
+          <!-- Switchable Header Tabs (Lyrics / Up Next) -->
+          <div class="panel-header-tabs">
+            <div id="tab-lyrics" class="header-tab active-tab" onclick="App.switchPlayerTab('lyrics');">
+              <span class="tab-indicator-dot"></span>
+              <span class="tab-label">LYRICS</span>
+            </div>
+            <div id="tab-queue" class="header-tab" onclick="App.switchPlayerTab('queue');">
+              <span class="tab-icon">&#9776;</span>
+              <span class="tab-label">UP NEXT</span>
+              <span id="queue-badge" class="queue-badge">0</span>
+            </div>
+            <div class="tab-hint">
+              <span class="key-badge">GREEN</span> Switch
+            </div>
+          </div>
+
+          <!-- Top & Bottom Gradient Masks for authentic fade-in / fade-out -->
+          <div id="lyrics-mask-top" class="lyrics-mask-top"></div>
+          <div id="lyrics-mask-bottom" class="lyrics-mask-bottom"></div>
+
+          <!-- 1. Masked Viewport Container for Lyrics -->
+          <div id="lyrics-window" class="lyrics-window">
+            <div id="lyrics-container" class="lyrics-container">
+              <div class="lyrics-line placeholder-line">Loading synchronized lyrics...</div>
+            </div>
+          </div>
+
+          <!-- 2. Up Next Recommended Queue Container (with mouse wheel support) -->
+          <div id="queue-window" class="queue-window" style="display: none;" onwheel="App.onQueueWheel(event);">
+            <div id="queue-container" class="queue-container">
+              <div class="queue-placeholder">Loading recommended tracks...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pause Overlay Banner -->
+      <div id="player-pause-indicator" style="display: none;">
+        <div class="pause-symbol">&#10074;&#10074;</div>
+        <div class="pause-label">PAUSED</div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
