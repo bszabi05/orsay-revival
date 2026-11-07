@@ -1,0 +1,1107 @@
+/*
+ * Music TV Client - Samsung Smart TV (Orsay OS 2012-2015 WebKit 534/537)
+ *
+ * Spotify TV Theme - Lightweight & Hardware Optimized
+ * Strict Constraints:
+ *   - Fixed 960x540 Viewport
+ *   - STRICTLY NO Flexbox (display: flex) and NO Grid (display: grid)
+ *   - Absolute Positioning and inline-block layout
+ *   - Hardware acceleration exclusively via translate3d(0,0,0)
+ *   - Spotify Green (#1DB954) on Spotify Dark (#121212, #181818, #242424)
+ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  width: 960px;
+  height: 540px;
+  overflow: hidden;
+  background-color: #121212;
+  font-family: Arial, Helvetica, "Samsung Sans", sans-serif;
+  color: #ffffff;
+}
+
+#appContainer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 960px;
+  height: 540px;
+  overflow: hidden;
+  background-color: #121212;
+}
+
+/* ==========================================================================
+   1. SEARCH & BROWSE VIEW (Spotify TV Style)
+   ========================================================================== */
+
+#search-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 960px;
+  height: 540px;
+  background-color: #121212;
+  background-image: -webkit-radial-gradient(50% 20%, circle, #1e261f 0%, #121212 90%);
+  background-image: radial-gradient(circle at 50% 20%, #1e261f 0%, #121212 90%);
+  z-index: 10;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+/* Top Navigation Bar */
+.top-nav-bar {
+  position: absolute;
+  top: 14px;
+  left: 30px;
+  width: 900px;
+  height: 44px;
+}
+
+/* Brand Logo (Spotify Soundwave Icon) */
+.brand-logo {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  height: 36px;
+  line-height: 36px;
+}
+
+.spotify-icon {
+  display: inline-block;
+  width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  background-color: #1db954;
+  position: relative;
+  vertical-align: middle;
+  margin-right: 8px;
+  box-shadow: 0 0 8px rgba(29, 185, 84, 0.4);
+}
+
+.spotify-icon .wave-1,
+.spotify-icon .wave-2,
+.spotify-icon .wave-3 {
+  position: absolute;
+  border-top: 2px solid #000000;
+  border-radius: 50%;
+  left: 5px;
+}
+
+.spotify-icon .wave-1 {
+  top: 6px;
+  width: 16px;
+  height: 7px;
+  border-top-width: 2px;
+}
+
+.spotify-icon .wave-2 {
+  top: 10px;
+  width: 13px;
+  height: 6px;
+  left: 6px;
+  border-top-width: 2px;
+}
+
+.spotify-icon .wave-3 {
+  top: 14px;
+  width: 10px;
+  height: 5px;
+  left: 7px;
+  border-top-width: 1.5px;
+}
+
+.brand-text {
+  display: inline-block;
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 1.5px;
+  color: #ffffff;
+  vertical-align: middle;
+}
+
+.brand-text .green-text {
+  color: #1db954;
+  margin-left: 2px;
+}
+
+/* Search Box */
+.search-box-wrap {
+  position: absolute;
+  top: 0;
+  left: 170px;
+  width: 730px;
+  height: 42px;
+}
+
+.search-lens {
+  position: absolute;
+  top: 11px;
+  left: 16px;
+  font-size: 15px;
+  color: #a7a7a7;
+  z-index: 2;
+  pointer-events: none;
+}
+
+#search-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 530px;
+  height: 42px;
+  background-color: #242424;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 21px;
+  padding: 0 20px 0 44px;
+  font-size: 15px;
+  color: #ffffff;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+  -webkit-transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+
+#search-input:focus,
+#search-input.active {
+  border-color: #1db954;
+  background-color: #2a2a2a;
+  box-shadow: 0 0 14px rgba(29, 185, 84, 0.5);
+}
+
+.search-clear-hint {
+  position: absolute;
+  top: 6px;
+  left: 546px;
+  height: 30px;
+  line-height: 28px;
+  padding: 0 14px;
+  background-color: #242424;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #1db954;
+  cursor: pointer;
+  -webkit-transition: background-color 0.2s, color 0.2s;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.search-clear-hint:hover,
+.search-clear-hint:active {
+  background-color: #1db954;
+  color: #000000;
+  border-color: #1db954;
+}
+
+/* Floating Mouse Scroll Buttons */
+.grid-scroll-btn {
+  position: absolute;
+  right: 12px;
+  width: 32px;
+  height: 46px;
+  line-height: 46px;
+  text-align: center;
+  background-color: rgba(30, 30, 30, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 15px;
+  cursor: pointer;
+  z-index: 14;
+  -webkit-transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.grid-scroll-btn:hover {
+  background-color: #1db954;
+  color: #000000;
+  border-color: #1db954;
+}
+
+.grid-scroll-btn.scroll-up {
+  top: 150px;
+}
+
+.grid-scroll-btn.scroll-down {
+  bottom: 60px;
+}
+
+/* Filter Pills Bar (Quick Genres) */
+.filter-pills-bar {
+  position: absolute;
+  top: 66px;
+  left: 30px;
+  width: 900px;
+  height: 32px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.filter-pill {
+  display: inline-block;
+  height: 30px;
+  line-height: 28px;
+  padding: 0 16px;
+  margin-right: 10px;
+  border-radius: 15px;
+  background-color: #242424;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.filter-pill.focused-pill {
+  border-color: #1db954;
+  box-shadow: 0 0 12px rgba(29, 185, 84, 0.6);
+  background-color: #333333;
+}
+
+.filter-pill.active-pill {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: bold;
+}
+
+.filter-pill.active-pill.focused-pill {
+  background-color: #1db954;
+  color: #000000;
+  border-color: #1db954;
+  box-shadow: 0 0 14px rgba(29, 185, 84, 0.8);
+}
+
+/* Section Header */
+.section-header {
+  position: absolute;
+  top: 106px;
+  left: 30px;
+  width: 900px;
+  height: 24px;
+  line-height: 24px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #ffffff;
+  display: inline-block;
+}
+
+.section-status {
+  font-size: 12px;
+  color: #b3b3b3;
+  display: inline-block;
+  margin-left: 14px;
+}
+
+/* Results Viewport (Masked scrollable window) */
+.results-viewport {
+  position: absolute;
+  top: 136px;
+  left: 20px;
+  width: 920px;
+  height: 346px;
+  overflow: hidden;
+}
+
+.results-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 920px;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-transition: -webkit-transform 0.25s ease-out;
+  transition: transform 0.25s ease-out;
+}
+
+/* Song Card (Spotify TV Grid Card) */
+.song-card {
+  display: inline-block;
+  vertical-align: top;
+  width: 210px;
+  height: 240px;
+  margin: 0 10px 14px 10px;
+  background-color: #181818;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+
+.song-card.active {
+  background-color: #282828;
+  border-color: #1db954;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 16px rgba(29, 185, 84, 0.35);
+}
+
+.card-thumb-wrap {
+  width: 182px;
+  height: 182px;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: #242424;
+  position: relative;
+}
+
+.card-thumb {
+  width: 182px;
+  height: 182px;
+  display: block;
+  background-color: #242424;
+}
+
+/* Floating Spotify Play Circle Button */
+.card-play-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  line-height: 36px;
+  text-align: center;
+  border-radius: 18px;
+  background-color: #1db954;
+  color: #000000;
+  font-size: 15px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  -webkit-transform: translate3d(0, 6px, 0);
+  transform: translate3d(0, 6px, 0);
+  -webkit-transition: opacity 0.2s, -webkit-transform 0.2s;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.song-card.active .card-play-btn {
+  opacity: 1;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+.card-title {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.card-artist {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #b3b3b3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.song-card.active .card-artist {
+  color: #1db954;
+}
+
+/* Empty Search Placeholder */
+.results-placeholder {
+  position: absolute;
+  top: 70px;
+  left: 0;
+  width: 920px;
+  text-align: center;
+  color: #a7a7a7;
+}
+
+.placeholder-icon {
+  font-size: 44px;
+  color: #333333;
+  margin-bottom: 10px;
+}
+
+.placeholder-text {
+  font-size: 15px;
+  color: #b3b3b3;
+}
+
+/* Persistent Bottom Mini-Player Bar */
+.mini-player-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 960px;
+  height: 56px;
+  background-color: #181818;
+  border-top: 1px solid #282828;
+  z-index: 15;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+.mini-player-bar.active-focus {
+  border-top: 2px solid #1db954;
+  box-shadow: 0 -4px 18px rgba(29, 185, 84, 0.4);
+  background-color: #222222;
+}
+
+.mini-left {
+  position: absolute;
+  top: 6px;
+  left: 24px;
+  width: 330px;
+  height: 44px;
+}
+
+.mini-cover {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  float: left;
+  background-color: #282828;
+}
+
+.mini-track-meta {
+  margin-left: 54px;
+  height: 44px;
+  padding-top: 4px;
+}
+
+.mini-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-artist {
+  font-size: 11px;
+  color: #b3b3b3;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-center {
+  position: absolute;
+  top: 8px;
+  left: 370px;
+  width: 280px;
+  height: 40px;
+}
+
+.mini-controls {
+  text-align: center;
+  height: 22px;
+}
+
+.mini-btn-play {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  border-radius: 11px;
+  background-color: #ffffff;
+  color: #000000;
+  font-size: 10px;
+  text-align: center;
+}
+
+.mini-progress-track {
+  width: 280px;
+  height: 4px;
+  background-color: #4d4d4d;
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.mini-progress-fill {
+  width: 0%;
+  height: 4px;
+  background-color: #1db954;
+  border-radius: 2px;
+}
+
+.mini-right {
+  position: absolute;
+  top: 17px;
+  right: 30px;
+  text-align: right;
+}
+
+.mini-expand-hint {
+  font-size: 12px;
+  color: #b3b3b3;
+}
+
+/* Bottom Remote Key Hints Footer */
+.search-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 960px;
+  height: 38px;
+  line-height: 38px;
+  padding: 0 30px;
+  background-color: #0e0e0e;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  z-index: 12;
+}
+
+.footer-tip {
+  display: inline-block;
+  margin-right: 22px;
+  font-size: 12px;
+  color: #b3b3b3;
+}
+
+.key-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  background-color: #2a2a2a;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: bold;
+  color: #ffffff;
+  margin-right: 4px;
+}
+
+.server-status {
+  float: right;
+  font-size: 11px;
+  color: #b3b3b3;
+}
+
+/* ==========================================================================
+   2. PLAYER & KARAOKE LYRICS VIEW (Spotify Full-Screen Player)
+   ========================================================================== */
+
+#player-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 960px;
+  height: 540px;
+  background-color: #121212;
+  z-index: 20;
+  overflow: hidden;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+/* Dynamic Blurred Backdrop */
+.player-bg {
+  position: absolute;
+  top: -40px;
+  left: -40px;
+  width: 1040px;
+  height: 620px;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.22;
+  -webkit-filter: blur(40px);
+  filter: blur(40px);
+}
+
+.player-dark-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 960px;
+  height: 540px;
+  background: -webkit-radial-gradient(35% 45%, circle, rgba(18, 18, 18, 0.70) 0%, rgba(10, 10, 10, 0.95) 100%);
+  background: radial-gradient(circle at 35% 45%, rgba(18, 18, 18, 0.70) 0%, rgba(10, 10, 10, 0.95) 100%);
+}
+
+/* Left Column: Album Art, Metadata & Playback Controls */
+.player-left-col {
+  position: absolute;
+  top: 36px;
+  left: 40px;
+  width: 320px;
+  height: 468px;
+  z-index: 22;
+}
+
+.cover-wrapper {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #242424;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.8);
+}
+
+.player-cover {
+  width: 240px;
+  height: 240px;
+  display: block;
+}
+
+.player-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background-color: #1db954;
+  color: #000000;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+
+.player-metadata {
+  margin-top: 18px;
+  width: 310px;
+}
+
+.player-title {
+  font-size: 22px;
+  font-weight: bold;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-artist {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #b3b3b3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Spotify Progress Scrubber */
+.player-progress-container {
+  margin-top: 14px;
+  width: 310px;
+}
+
+.progress-bar-wrap {
+  width: 310px;
+  height: 6px;
+  cursor: pointer;
+}
+
+.progress-bar-bg {
+  width: 310px;
+  height: 4px;
+  background-color: #404040;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  width: 0%;
+  height: 4px;
+  background-color: #1db954;
+  border-radius: 2px;
+  -webkit-transition: width 0.2s linear;
+  transition: width 0.2s linear;
+}
+
+.progress-time-row {
+  margin-top: 4px;
+  width: 310px;
+  height: 16px;
+}
+
+.time-label {
+  font-size: 11px;
+  color: #a7a7a7;
+  font-family: Arial, monospace;
+}
+
+#time-current {
+  float: left;
+}
+
+#time-total {
+  float: right;
+}
+
+/* Playback Controls Row */
+.player-controls-row {
+  margin-top: 12px;
+  width: 310px;
+  text-align: center;
+}
+
+.ctrl-btn-small {
+  display: inline-block;
+  vertical-align: middle;
+  padding: 6px 10px;
+  color: #b3b3b3;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ctrl-btn-play {
+  display: inline-block;
+  vertical-align: middle;
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  border-radius: 22px;
+  background-color: #1db954;
+  color: #000000;
+  font-size: 18px;
+  text-align: center;
+  margin: 0 14px;
+  box-shadow: 0 4px 14px rgba(29, 185, 84, 0.4);
+  cursor: pointer;
+}
+
+.player-footer-hints {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 310px;
+}
+
+.player-footer-hints .hint-item {
+  display: inline-block;
+  margin-right: 12px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #a7a7a7;
+}
+
+/* Right Column: Spotify Karaoke Scrolling Lyrics Panel */
+.player-right-col {
+  position: absolute;
+  top: 36px;
+  left: 380px;
+  width: 540px;
+  height: 468px;
+  z-index: 22;
+}
+
+.lyrics-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 540px;
+  height: 468px;
+  background-color: rgba(18, 18, 18, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 16px 24px;
+  overflow: hidden;
+}
+
+/* Switchable Header Tabs (Lyrics / Up Next) */
+.panel-header-tabs {
+  height: 32px;
+  line-height: 30px;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.header-tab {
+  display: inline-block;
+  vertical-align: middle;
+  height: 28px;
+  line-height: 26px;
+  padding: 0 14px;
+  margin-right: 10px;
+  border-radius: 14px;
+  background-color: #242424;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #b3b3b3;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.header-tab.active-tab {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  font-weight: bold;
+}
+
+.header-tab.focused-tab {
+  border-color: #1db954;
+  box-shadow: 0 0 10px rgba(29, 185, 84, 0.6);
+}
+
+.header-tab.active-tab.focused-tab {
+  background-color: #1db954;
+  color: #000000;
+  border-color: #1db954;
+}
+
+.tab-indicator-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #1db954;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.tab-icon {
+  margin-right: 6px;
+  font-size: 12px;
+}
+
+.queue-badge {
+  display: inline-block;
+  background-color: #1db954;
+  color: #000000;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 0 5px;
+  height: 16px;
+  line-height: 16px;
+  border-radius: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.tab-hint {
+  float: right;
+  line-height: 28px;
+  font-size: 11px;
+  color: #a7a7a7;
+}
+
+/* Top & Bottom Gradient Masks for authentic fade-in / fade-out */
+.lyrics-mask-top {
+  position: absolute;
+  top: 54px;
+  left: 24px;
+  width: 492px;
+  height: 40px;
+  background: -webkit-linear-gradient(top, rgba(18, 18, 18, 1) 0%, rgba(18, 18, 18, 0) 100%);
+  background: linear-gradient(to bottom, rgba(18, 18, 18, 1) 0%, rgba(18, 18, 18, 0) 100%);
+  z-index: 25;
+  pointer-events: none;
+}
+
+.lyrics-mask-bottom {
+  position: absolute;
+  bottom: 20px;
+  left: 24px;
+  width: 492px;
+  height: 60px;
+  background: -webkit-linear-gradient(bottom, rgba(18, 18, 18, 1) 0%, rgba(18, 18, 18, 0) 100%);
+  background: linear-gradient(to top, rgba(18, 18, 18, 1) 0%, rgba(18, 18, 18, 0) 100%);
+  z-index: 25;
+  pointer-events: none;
+}
+
+/* 1. Masked Viewport Container for Lyrics */
+.lyrics-window {
+  position: absolute;
+  top: 54px;
+  left: 24px;
+  width: 492px;
+  height: 384px;
+  overflow: hidden;
+}
+
+/* 2. Up Next Recommended Queue Container */
+.queue-window {
+  position: absolute;
+  top: 54px;
+  left: 24px;
+  width: 492px;
+  height: 394px;
+  overflow: hidden;
+}
+
+.queue-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 492px;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-transition: -webkit-transform 0.25s ease-out;
+  transition: transform 0.25s ease-out;
+  padding: 4px 0 16px 0;
+}
+
+.queue-item {
+  display: block;
+  width: 492px;
+  height: 56px;
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background-color: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  position: relative;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.queue-item.active {
+  background-color: #282828;
+  border-color: #1db954;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 10px rgba(29, 185, 84, 0.35);
+}
+
+.queue-item-thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 4px;
+  float: left;
+  background-color: #242424;
+}
+
+.queue-item-info {
+  margin-left: 52px;
+  margin-right: 40px;
+  height: 42px;
+  padding-top: 3px;
+}
+
+.queue-item-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-item-artist {
+  font-size: 11px;
+  color: #b3b3b3;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-item.active .queue-item-artist {
+  color: #1db954;
+}
+
+.queue-item-play {
+  position: absolute;
+  right: 14px;
+  top: 18px;
+  font-size: 14px;
+  color: #1db954;
+  opacity: 0;
+  -webkit-transition: opacity 0.2s;
+  transition: opacity 0.2s;
+}
+
+.queue-item.active .queue-item-play {
+  opacity: 1;
+}
+
+.queue-placeholder {
+  text-align: center;
+  padding-top: 120px;
+  font-size: 15px;
+  color: #535353;
+  font-style: italic;
+}
+
+.lyrics-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 492px;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-transition: -webkit-transform 0.35s ease-out;
+  transition: transform 0.35s ease-out;
+  padding: 10px 0;
+}
+
+.lyrics-line {
+  min-height: 44px;
+  line-height: 44px;
+  font-size: 19px;
+  font-weight: 500;
+  color: #535353;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-transition: color 0.25s, font-size 0.25s;
+  transition: color 0.25s, font-size 0.25s;
+}
+
+.lyrics-line.active-line {
+  color: #ffffff;
+  font-size: 25px;
+  font-weight: bold;
+  text-shadow: 0 0 16px rgba(255, 255, 255, 0.4);
+}
+
+.placeholder-line {
+  color: #535353;
+  font-style: italic;
+  font-size: 16px;
+}
+
+/* Pause Overlay */
+#player-pause-indicator {
+  position: absolute;
+  top: 210px;
+  left: 380px;
+  width: 200px;
+  text-align: center;
+  background-color: rgba(0, 0, 0, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 16px 10px;
+  z-index: 35;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+.pause-symbol {
+  font-size: 30px;
+  color: #ffffff;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.pause-label {
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: #cbd5e1;
+}

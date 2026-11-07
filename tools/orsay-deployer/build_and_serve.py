@@ -342,6 +342,11 @@ def parse_args() -> argparse.Namespace:
         default=detected_ip,
         help=f"Server IP address advertised to the TV (default auto-detected: {detected_ip}).",
     )
+    parser.add_argument(
+        "--build-only",
+        action="store_true",
+        help="Only package widget ZIPs and generate widgetlist.xml without starting the HTTP server.",
+    )
     return parser.parse_args()
 
 
@@ -350,6 +355,9 @@ def main() -> int:
     try:
         widget_dirs = resolve_app_dirs(args.app)
         prepared_widgets = prepare_server_root(widget_dirs, args.ip, args.port)
+        if args.build_only:
+            print(f"Successfully packaged {len(prepared_widgets)} widget(s) in {SERVER_ROOT}.")
+            return 0
         serve(
             SERVER_ROOT,
             args.host,

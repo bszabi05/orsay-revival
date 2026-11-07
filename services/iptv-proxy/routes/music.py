@@ -95,3 +95,90 @@ def search_music():
         # Free memory back to the Linux kernel immediately after JSON response generation
         release_os_memory()
 
+
+@music_bp.route('/related', methods=['GET'])
+@music_bp.route('/radio', methods=['GET'])
+def related_music():
+    """Fetch similar/recommended tracks for a given videoId using YouTube Music Radio.
+
+    Query parameters:
+    - videoId / v: Target YouTube/YouTube Music video ID (e.g. /api/music/related?videoId=zlJ0Aj9y67c)
+    - limit: Maximum number of recommended tracks to return (default: 15, max: 30)
+
+    Returns:
+    JSON array of pruned similar tracks:
+    [
+      {
+        "videoId": "Obim8BYGnOE",
+        "title": "Till I Collapse",
+        "artist": "Eminem",
+        "thumbnail": "https://..."
+      }
+    ]
+    """
+    video_id = request.args.get('videoId') or request.args.get('v') or request.args.get('q')
+    if not video_id or not video_id.strip():
+        return jsonify({"error": "Missing or empty query parameter 'videoId' (or 'v')"}), 400
+
+    video_id = video_id.strip()
+
+    try:
+        limit_param = request.args.get('limit', '15')
+        try:
+            limit = min(30, max(1, int(limit_param)))
+        except ValueError:
+            limit = 15
+
+        ytmusic = get_ytmusic()
+        watch_playlist = ytmusic.get_watch_playlist(videoId=video_id, limit=limit + 5)
+        raw_tracks = watch_playlist.get('tracks') or []
+
+        cleaned_recommendations: List[Dict[str, str]] = []
+        for item in raw_tracks:
+            item_vid = item.get('videoId')
+            if not item_vid or not isinstance(item_vid, str):
+                continue
+
+            # Skip the seed track itself so we only return new recommendations
+            if item_vid == video_id and len(cleaned_recommendations) == 0:
+                continue
+
+            # 1. Primary artist extraction
+            artist_name = ''
+            artists = item.get('artists')
+            if artists and isinstance(artists, list) and len(artists) > 0:
+                artist_name = artists[0].get('name', '')
+            elif isinstance(item.get('artist'), str):
+                artist_name = item.get('artist', '')
+
+            # 2. Highest resolution thumbnail extraction (thumbnail can be list or dict)
+            thumbs = item.get('thumbnail') or item.get('thumbnails') or []
+            best_thumb_url = ''
+            if isinstance(thumbs, list) and thumbs:
+                best_thumb = max(
+                    thumbs,
+                    key=lambda t: (t.get('width') or 0) * (t.get('height') or 0),
+                    default=thumbs[-1]
+                )
+                best_thumb_url = best_thumb.get('url', '') if isinstance(best_thumb, dict) else ''
+            elif isinstance(thumbs, dict):
+                best_thumb_url = thumbs.get('url', '')
+
+            cleaned_recommendations.append({
+                "videoId": item_vid,
+                "title": item.get('title') or '',
+                "artist": artist_name,
+                "thumbnail": best_thumb_url,
+            })
+
+            if len(cleaned_recommendations) >= limit:
+                break
+
+        return jsonify(cleaned_recommendations), 200
+
+    except Exception as e:
+        print(f"[OrsayCast Music Related] Error fetching recommendations for '{video_id}': {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_os_memory()
+

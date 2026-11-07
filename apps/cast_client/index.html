@@ -9,6 +9,7 @@
   <!-- Samsung Orsay Common Widget & Key APIs -->
   <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/Widget.js"></script>
   <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/TVKeyValue.js"></script>
+  <script type="text/javascript" src="$MANAGER_WIDGET/Common/API/Plugin.js"></script>
 
   <!-- User server configuration -->
   <script type="text/javascript" src="config.js"></script>
@@ -16,7 +17,7 @@
   <!-- Application Logic (Strict ES5 for WebKit 534/537) -->
   <script type="text/javascript" src="js/main.js"></script>
 </head>
-<body onload="App.init();">
+<body onload="App.init();" tabindex="0" onmousemove="App.showControls();">
   <div id="appContainer">
 
     <!-- Standby Layer (Idle screensaver) -->
@@ -47,7 +48,7 @@
     <!-- Player Layer (Active Video/Audio Playback) -->
     <div id="playerLayer" style="display: none;">
       <!-- HTML5 Video element with explicit dimensions for Orsay hardware surface -->
-      <video id="videoPlayer" preload="none" style="position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 21; background: #000; object-fit: contain;"></video>
+      <video id="videoPlayer" style="position: absolute; left: 0; top: 0; width: 960px; height: 540px; z-index: 21; background: #000; object-fit: contain;"></video>
 
       <!-- Music Visualizer / Lyrics Backdrop (shown when media_type is 'music') -->
       <div id="musicBackdrop" style="display: none;">
@@ -65,11 +66,47 @@
         </div>
       </div>
 
-      <!-- OSD Banner (Shows on stream start, auto-hides) -->
-      <div id="playerOsd" class="osdHidden">
-        <div class="osdBadge">ORSAYCAST</div>
-        <div id="osdTitle" class="osdTitle">Loading media...</div>
-        <div id="osdQueueStatus" class="osdSubtitle"></div>
+      <!-- Top Mini Status Bar -->
+      <div id="playerTopBar" class="player-top-bar">
+        <span class="top-badge">ORSAYCAST</span>
+        <span id="playerTopTitle" class="top-title">Loading media...</span>
+        <span id="playerBufferingBadge" class="status-badge" style="display: none;">CONNECTING...</span>
+      </div>
+
+      <!-- Bottom Interactive Playback Controls Bar (OSD) -->
+      <div id="castControlsBar" class="cast-controls-bar">
+        <!-- Progress Scrubber Bar -->
+        <div id="castProgressWrap" class="progress-wrap" onclick="App.onProgressClick(event);">
+          <div class="progress-bg">
+            <div id="castProgressFill" class="progress-fill"></div>
+          </div>
+        </div>
+
+        <!-- Meta, Controls & Time Row -->
+        <div class="controls-row">
+          <!-- Left: Playback Action Buttons -->
+          <div class="controls-buttons">
+            <button id="btnRw" class="ctrl-btn" onclick="App.seekOffset(-10);" title="Rewind 10s">&#9664;&#9664; 10s</button>
+            <button id="btnPlayPause" class="ctrl-btn ctrl-btn-main" onclick="App.sendPlayPause();" title="Play/Pause">&#10074;&#10074;</button>
+            <button id="btnFf" class="ctrl-btn" onclick="App.seekOffset(10);" title="Forward 10s">10s &#9654;&#9654;</button>
+            <button id="btnStop" class="ctrl-btn ctrl-btn-stop" onclick="App.sendStop();" title="Stop Cast">&#9632; Stop</button>
+          </div>
+
+          <!-- Center: Live Time Display -->
+          <div class="controls-times">
+            <span id="castTimeCurrent">0:00</span>
+            <span class="time-sep">/</span>
+            <span id="castTimeTotal">--:--</span>
+          </div>
+
+          <!-- Right: Remote Key Tips -->
+          <div class="controls-hints">
+            <span class="key-pill"><span class="k-key">ENTER</span> Play/Pause</span>
+            <span class="key-pill"><span class="k-key">&#9664; / &#9654;</span> &plusmn;10s</span>
+            <span class="key-pill"><span class="k-key">STOP</span> Stop</span>
+            <span class="key-pill"><span class="k-key">RETURN</span> Standby</span>
+          </div>
+        </div>
       </div>
 
       <!-- Pause Indicator Overlay -->
@@ -82,4 +119,3 @@
   </div>
 </body>
 </html>
-

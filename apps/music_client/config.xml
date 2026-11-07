@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget>
+    <ThumbIcon>icon/ThumbIcon.png</ThumbIcon>
+    <BigThumbIcon>icon/BigThumbIcon.png</BigThumbIcon>
+    <ListIcon>icon/ListIcon.png</ListIcon>
+    <BigListIcon>icon/BigListIcon.png</BigListIcon>
+    <icon>icon.png</icon>
+    <category>music</category>
+    <autoUpdate>y</autoUpdate>
+    <ver>1.0.0</ver>
+    <version>1.0.0</version>
+    <fullwidget>y</fullwidget>
+    <srcctl>y</srcctl>
+    <ticker>n</ticker>
+    <childlock>n</childlock>
+    <audiomute>n</audiomute>
+    <videomute>n</videomute>
+    <dcont>y</dcont>
+    <movie>n</movie>
+    <type>user</type>
+    <widgetname>Music TV</widgetname>
+    <widgetid>orsay.music.app</widgetid>
+    <description>Music Player and Lyrics Search for Samsung Smart TV</description>
+    <mouse>y</mouse>
+    <width>960</width>
+    <height>540</height>
+    <author>
+        <name>bszabi05</name>
+        <email></email>
+        <link></link>
+    </author>
+    <cdata>
+        <entry>index.html</entry>
+    </cdata>
+</widget>
+

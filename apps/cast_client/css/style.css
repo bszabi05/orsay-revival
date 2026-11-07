@@ -200,60 +200,207 @@ html, body {
 }
 
 /* ==========================================================================
-   3. OSD Overlay Banner
+   3. Player Top Bar & Interactive Controls (OSD)
    ========================================================================== */
 
-#playerOsd {
+.player-top-bar {
   position: absolute;
-  bottom: 25px;
-  left: 40px;
-  width: 880px;
-  background-color: rgba(15, 23, 42, 0.90);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 10px;
-  padding: 14px 22px;
+  top: 16px;
+  left: 30px;
+  width: 900px;
+  height: 36px;
+  line-height: 36px;
   z-index: 30;
   -webkit-transform: translate3d(0, 0, 0);
   transform: translate3d(0, 0, 0);
-  -webkit-transition: opacity 0.35s ease-out;
-  transition: opacity 0.35s ease-out;
+  -webkit-transition: opacity 0.3s;
+  transition: opacity 0.3s;
 }
 
-.osdHidden {
-  opacity: 0;
-  visibility: hidden;
-}
-
-.osdVisible {
-  opacity: 1;
-  visibility: visible;
-}
-
-.osdBadge {
+.top-badge {
   display: inline-block;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: bold;
   background-color: #2563eb;
   color: #ffffff;
-  padding: 2px 7px;
-  border-radius: 3px;
+  padding: 3px 8px;
+  border-radius: 4px;
   letter-spacing: 1px;
-  margin-bottom: 5px;
+  margin-right: 12px;
+  vertical-align: middle;
 }
 
-.osdTitle {
-  font-size: 19px;
+.top-title {
+  display: inline-block;
+  font-size: 16px;
   font-weight: bold;
   color: #ffffff;
+  max-width: 650px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
-.osdSubtitle {
-  font-size: 12px;
+.status-badge {
+  display: inline-block;
+  float: right;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background-color: #f59e0b;
+  color: #000000;
+  letter-spacing: 1px;
+}
+
+/* Bottom Interactive Playback Controls Bar */
+.cast-controls-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 960px;
+  height: 90px;
+  background-color: rgba(10, 15, 25, 0.92);
+  background-image: -webkit-linear-gradient(bottom, rgba(10, 15, 25, 0.98) 0%, rgba(10, 15, 25, 0.70) 100%);
+  background-image: linear-gradient(to top, rgba(10, 15, 25, 0.98) 0%, rgba(10, 15, 25, 0.70) 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 30;
+  padding: 10px 30px 14px 30px;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-transition: opacity 0.3s ease-out, -webkit-transform 0.3s ease-out;
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.cast-controls-bar.controls-hidden {
+  opacity: 0;
+  pointer-events: none;
+  -webkit-transform: translate3d(0, 40px, 0);
+  transform: translate3d(0, 40px, 0);
+}
+
+.progress-wrap {
+  width: 900px;
+  height: 12px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.progress-bg {
+  width: 900px;
+  height: 6px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  width: 0%;
+  height: 6px;
+  background-color: #3b82f6;
+  border-radius: 3px;
+  -webkit-transition: width 0.2s linear;
+  transition: width 0.2s linear;
+}
+
+.controls-row {
+  margin-top: 10px;
+  width: 900px;
+  height: 40px;
+  position: relative;
+}
+
+.controls-buttons {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.ctrl-btn {
+  display: inline-block;
+  height: 34px;
+  line-height: 32px;
+  padding: 0 14px;
+  margin-right: 8px;
+  border-radius: 6px;
+  background-color: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f1f5f9;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  vertical-align: middle;
+}
+
+.ctrl-btn:hover,
+.ctrl-btn.focused {
+  background-color: #334155;
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.ctrl-btn-main {
+  background-color: #2563eb;
+  border-color: #3b82f6;
+  font-weight: bold;
+  padding: 0 18px;
+}
+
+.ctrl-btn-main:hover,
+.ctrl-btn-main.focused {
+  background-color: #1d4ed8;
+  border-color: #60a5fa;
+}
+
+.ctrl-btn-stop {
+  background-color: #dc2626;
+  border-color: #ef4444;
+}
+
+.ctrl-btn-stop:hover,
+.ctrl-btn-stop.focused {
+  background-color: #b91c1c;
+}
+
+.controls-times {
+  position: absolute;
+  top: 6px;
+  left: 360px;
+  font-size: 14px;
+  font-family: Arial, monospace;
+  color: #cbd5e1;
+}
+
+.time-sep {
+  color: #64748b;
+  margin: 0 4px;
+}
+
+.controls-hints {
+  position: absolute;
+  top: 6px;
+  right: 0;
+}
+
+.key-pill {
+  display: inline-block;
+  margin-left: 12px;
+  font-size: 11px;
   color: #94a3b8;
-  margin-top: 4px;
+}
+
+.k-key {
+  display: inline-block;
+  background-color: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: bold;
+  color: #f8fafc;
+  margin-right: 4px;
 }
 
 /* ==========================================================================

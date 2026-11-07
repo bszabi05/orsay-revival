@@ -201,12 +201,10 @@ def toggle_playpause():
 def status():
     """Return the current casting state for TV/controller polling.
 
-    Returns HTTP 204 No Content when status is 'idle' and queue is empty.
-    Returns JSON state when active or queue is populated.
+    Always returns JSON HTTP 200 OK so that older WebKit engines on Smart TVs
+    never hang or encounter the WebKit 204 No Content bug.
     """
     state = cast_manager.get_status()
-    if state.get("status") == "idle" and state.get("queue_count", 0) == 0:
-        return ("", 204)
     return jsonify(state), 200
 
 
@@ -239,8 +237,8 @@ def cast_stream():
         '-reconnect_streamed', '1',
         '-reconnect_delay_max', '4',
         '-reconnect_on_http_error', '4xx,5xx',
-        '-probesize', '1048576',
-        '-analyzeduration', '1500000',
+        '-probesize', '500000',
+        '-analyzeduration', '1000000',
         '-fflags', '+nobuffer+flush_packets+fastseek',
         '-flags', 'low_delay',
     ]
@@ -252,42 +250,33 @@ def cast_stream():
             '-i', inp
         ])
 
-    if media_type == 'music':
-        # Music mode: Drop video with -vn for a lightweight, black-screen audio-only MPEG-TS stream
+    # Samsung Orsay HTML5 <video> hardware decoder pipeline requires video frames (H.264 Annex-B SPS/PPS)
+    # even when playing music tracks to successfully initialize surface preroll and clock synchronization.
+    if len(inputs) >= 2:
         ffmpeg_cmd.extend([
-            '-vn',
-            '-c:a', 'copy',
-            '-map', '0:a:0?',
-            '-avoid_negative_ts', 'make_zero',
-            '-f', 'mpegts',
-            '-flush_packets', '1',
-            '-max_delay', '500000',
-            '-mpegts_flags', '+resend_headers+initial_discontinuity',
-            'pipe:1'
+            '-map', '0:v:0?',
+            '-map', '1:a:0?',
         ])
     else:
-        # Video mode: Remux video and audio tracks with explicit stream mapping
-        if len(inputs) >= 2:
-            ffmpeg_cmd.extend([
-                '-map', '0:v:0?',
-                '-map', '1:a:0?',
-            ])
-        else:
-            ffmpeg_cmd.extend([
-                '-map', '0:v:0?',
-                '-map', '0:a?',
-            ])
-
         ffmpeg_cmd.extend([
-            '-c:v', 'copy',
-            '-c:a', 'copy',
-            '-avoid_negative_ts', 'make_zero',
-            '-f', 'mpegts',
-            '-flush_packets', '1',
-            '-max_delay', '500000',
-            '-mpegts_flags', '+resend_headers+initial_discontinuity',
-            'pipe:1'
+            '-map', '0:v:0?',
+            '-map', '0:a?',
         ])
+
+    ffmpeg_cmd.extend([
+        '-c:v', 'copy',
+        '-bsf:v', 'h264_mp4toannexb',
+        '-c:a', 'aac',
+        '-b:a', '192k',
+        '-ar', '44100',
+        '-ac', '2',
+        '-avoid_negative_ts', 'make_zero',
+        '-f', 'mpegts',
+        '-flush_packets', '1',
+        '-max_delay', '500000',
+        '-mpegts_flags', '+resend_headers+initial_discontinuity',
+        'pipe:1'
+    ])
 
     popen_kwargs = {
         'stdout': subprocess.PIPE,
@@ -320,7 +309,7 @@ def cast_stream():
         finally:
             cleanup()
 
-    response = Response(generate(), mimetype='video/MP2T', direct_passthrough=True)
+    response = Response(generate(), mimetype='video/MP2T')
     response.call_on_close(cleanup)
     response.headers['Content-Disposition'] = 'inline; filename="cast_stream.ts"'
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
@@ -328,5 +317,6 @@ def cast_stream():
     response.headers['Expires'] = '0'
     response.headers['X-Accel-Buffering'] = 'no'
     response.headers['Accept-Ranges'] = 'none'
+    response.headers['Access-Control-Allow-Origin'] = '*'
 
     return response

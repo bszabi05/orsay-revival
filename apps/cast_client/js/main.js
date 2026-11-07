@@ -18,6 +18,7 @@ var SERVER_URL = ((typeof AppConfig !== 'undefined' && AppConfig.serverUrl) ?
 
 var widgetAPI = null;
 var tvKey = null;
+var pluginAPI = null;
 
 try {
   if (typeof Common !== 'undefined' && Common.API && Common.API.Widget) {
@@ -31,6 +32,12 @@ try {
   }
 } catch (keyInitErr) {}
 
+try {
+  if (typeof Common !== 'undefined' && Common.API && Common.API.Plugin) {
+    pluginAPI = new Common.API.Plugin();
+  }
+} catch (pluginInitErr) {}
+
 /* ==========================================================================
    Main Application Object
    ========================================================================== */
@@ -39,9 +46,10 @@ var App = {
   isPlaying: false,
   currentContentKey: '',
   isPaused: false,
+  trackDuration: 0,
   pollTimeoutId: null,
   clockTimeoutId: null,
-  osdTimeoutId: null,
+  controlsTimeoutId: null,
   isPollingActive: false,
   videoElement: null,
 
@@ -54,6 +62,7 @@ var App = {
 
     this.bindVideoEvents();
     this.installKeyHandler();
+    this.registerKeys();
     this.updateClock();
 
     /* Signal Orsay runtime that the widget is ready to receive remote input */
@@ -63,6 +72,32 @@ var App = {
 
     /* Start the initial polling request */
     this.pollStatus();
+  },
+
+  registerKeys: function () {
+    if (!pluginAPI || !pluginAPI.registKey) return;
+
+    if (tvKey) {
+      for (var k in tvKey) {
+        if (tvKey.hasOwnProperty(k) && typeof tvKey[k] === 'number') {
+          try {
+            pluginAPI.registKey(tvKey[k]);
+          } catch (e1) {}
+        }
+      }
+    }
+
+    var customKeys = [
+      65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77,
+      78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90,
+      8, 13, 27, 32, 37, 38, 39, 40,
+      412, 413, 415, 417, 10009, 10182, 10252, 10253, 10254
+    ];
+    for (var i = 0; i < customKeys.length; i++) {
+      try {
+        pluginAPI.registKey(customKeys[i]);
+      } catch (e2) {}
+    }
   },
 
   log: function (msg) {
@@ -79,6 +114,13 @@ var App = {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  },
+
+  formatTime: function (sec) {
+    if (isNaN(sec) || sec < 0) return '0:00';
+    var m = Math.floor(sec / 60);
+    var s = Math.floor(sec % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
   },
 
   /* ------------------------------------------------------------------------
@@ -110,7 +152,6 @@ var App = {
       dateEl.innerHTML = dayName + ', ' + monthName + ' ' + date + ', ' + year;
     }
 
-    /* Schedule next clock tick in 1000ms */
     this.clockTimeoutId = setTimeout(function () {
       self.updateClock();
     }, 1000);
@@ -134,30 +175,40 @@ var App = {
   pollStatus: function () {
     var self = this;
 
-    /* Prevent overlapping requests if a network request is still hanging */
     if (this.isPollingActive) {
       return;
     }
     this.isPollingActive = true;
 
     var xhr = new XMLHttpRequest();
-    /* Cache-busting query parameter prevents WebKit aggressive 304 caching */
     var url = SERVER_URL + '/status?_t=' + (new Date().getTime());
 
     xhr.open('GET', url, true);
+    xhr.timeout = 5000;
     xhr.setRequestHeader('Accept', 'application/json');
+
+    var completed = false;
+    function finalizePoll() {
+      if (completed) return;
+      completed = true;
+      self.isPollingActive = false;
+      if (self.pollTimeoutId) {
+        clearTimeout(self.pollTimeoutId);
+      }
+      self.pollTimeoutId = setTimeout(function () {
+        self.pollStatus();
+      }, 3000);
+    }
 
     xhr.onreadystatechange = function () {
       if (xhr.readyState !== 4) {
         return;
       }
 
-      self.isPollingActive = false;
-
       if (xhr.status === 200) {
         try {
           var data = JSON.parse(xhr.responseText);
-          self.updateServerBadge('connected', 'Server: Connected (' + SERVER_URL + ')');
+          self.updateServerBadge('connected', 'Server: Ready (' + SERVER_URL + ')');
 
           if (data.status === 'ready' || data.status === 'playing') {
             self.setPlayerMode(data);
@@ -171,31 +222,34 @@ var App = {
           self.setIdleMode(null);
         }
       } else if (xhr.status === 204) {
-        /* 204 No Content -> Server is idle, waiting for casting */
         self.updateServerBadge('connected', 'Server: Ready (' + SERVER_URL + ')');
         self.setIdleMode(null);
       } else {
-        /* Connection failure or HTTP error */
         self.updateServerBadge('disconnected', 'Server: Offline (' + SERVER_URL + ')');
         self.setIdleMode(null);
       }
 
-      /* Recursively schedule next poll in 3000ms */
-      self.pollTimeoutId = setTimeout(function () {
-        self.pollStatus();
-      }, 3000);
+      finalizePoll();
+    };
+
+    xhr.ontimeout = function () {
+      self.updateServerBadge('disconnected', 'Server timeout (' + SERVER_URL + ')');
+      self.setIdleMode(null);
+      finalizePoll();
+    };
+
+    xhr.onerror = function () {
+      self.updateServerBadge('disconnected', 'Server offline / CORS error');
+      self.setIdleMode(null);
+      finalizePoll();
     };
 
     try {
       xhr.send(null);
     } catch (sendErr) {
-      self.isPollingActive = false;
       self.updateServerBadge('disconnected', 'Network error: ' + sendErr);
       self.setIdleMode(null);
-
-      self.pollTimeoutId = setTimeout(function () {
-        self.pollStatus();
-      }, 3000);
+      finalizePoll();
     }
   },
 
@@ -203,7 +257,6 @@ var App = {
      State Handlers: Idle vs. Player Mode
      ------------------------------------------------------------------------ */
   setIdleMode: function (data) {
-    /* If currently playing, stop video and release hardware decoder buffers */
     if (this.isPlaying || (this.videoElement && this.videoElement.src)) {
       if (this.videoElement) {
         try {
@@ -220,18 +273,14 @@ var App = {
       this.isPaused = false;
     }
 
-    /* Switch visible layer */
     var playerLayer = document.getElementById('playerLayer');
     var standbyLayer = document.getElementById('standbyLayer');
     if (playerLayer) playerLayer.style.display = 'none';
     if (standbyLayer) standbyLayer.style.display = 'block';
 
-    /* Hide OSD and Pause indicators */
-    this.hideOsd();
     var pauseIndicator = document.getElementById('pauseIndicator');
     if (pauseIndicator) pauseIndicator.style.display = 'none';
 
-    /* Update standby status message */
     var statusEl = document.getElementById('standbyStatus');
     var subtextEl = document.getElementById('standbySubtext');
 
@@ -252,20 +301,28 @@ var App = {
     var contentKey = (data.original_url || data.title) ?
                      (data.original_url + '::' + (data.title || '')) : streamUrl;
 
-    /* Guard against restarting the video every 3 seconds while already playing */
     var isNewTrack = (!this.isPlaying) || (this.currentContentKey !== contentKey);
 
     if (isNewTrack) {
       this.currentContentKey = contentKey;
       this.isPlaying = true;
 
-      /* Switch layers */
+      if (data.duration) {
+        this.trackDuration = data.duration;
+      }
+
       var standbyLayer = document.getElementById('standbyLayer');
       var playerLayer = document.getElementById('playerLayer');
       if (standbyLayer) standbyLayer.style.display = 'none';
       if (playerLayer) playerLayer.style.display = 'block';
 
-      /* Music mode vs. Video mode presentation */
+      /* Update Top Bar Title */
+      var topTitle = document.getElementById('playerTopTitle');
+      if (topTitle) {
+        topTitle.innerHTML = this.escapeHtml(data.title || 'Playing stream');
+      }
+
+      /* Update Music visualizer if media_type is music */
       var musicBackdrop = document.getElementById('musicBackdrop');
       if (data.media_type === 'music') {
         if (musicBackdrop) musicBackdrop.style.display = 'block';
@@ -291,7 +348,7 @@ var App = {
         if (lyricsContainer && lyricsContent) {
           var lyricsText = '';
           if (data.lyrics) {
-            lyricsText = data.lyrics.synced || data.lyrics.plain || '';
+            lyricsText = (typeof data.lyrics === 'string') ? data.lyrics : (data.lyrics.synced || data.lyrics.plain || '');
           }
           if (lyricsText) {
             lyricsContent.innerHTML = this.escapeHtml(lyricsText);
@@ -308,47 +365,108 @@ var App = {
       if (this.videoElement) {
         this.videoElement.src = streamUrl;
         try {
+          this.videoElement.load();
+        } catch (loadErr) {}
+        try {
           this.videoElement.play();
         } catch (playErr) {
           this.log('Video play error: ' + playErr);
         }
       }
 
-      /* Show OSD Banner */
-      var titleText = data.title ? data.title : 'Playing cast stream';
-      var subtitleText = '';
-      if (data.queue_length && data.queue_length > 1) {
-        subtitleText = 'In queue: ' + data.queue_length + ' items';
-      }
-      this.showOsd(titleText, subtitleText);
+      /* Show controls overlay and auto-hide */
+      this.showControls();
     }
 
-    /* Sync pause state with backend state */
     this.handlePauseSync(data.is_paused);
   },
 
   handlePauseSync: function (serverPaused) {
     var pauseIndicator = document.getElementById('pauseIndicator');
+    var btnPlayPause = document.getElementById('btnPlayPause');
     var isPaused = !!serverPaused;
 
-    if (this.isPaused !== isPaused) {
-      this.isPaused = isPaused;
-      if (isPaused) {
-        if (pauseIndicator) pauseIndicator.style.display = 'block';
-        if (this.videoElement) {
-          try {
-            this.videoElement.pause();
-          } catch (e) {}
-        }
-      } else {
-        if (pauseIndicator) pauseIndicator.style.display = 'none';
-        if (this.videoElement) {
-          try {
-            this.videoElement.play();
-          } catch (e) {}
-        }
+    this.isPaused = isPaused;
+    if (isPaused) {
+      if (pauseIndicator) pauseIndicator.style.display = 'block';
+      if (btnPlayPause) btnPlayPause.innerHTML = '&#9658;';
+      if (this.videoElement) {
+        try { this.videoElement.pause(); } catch (e) {}
+      }
+    } else {
+      if (pauseIndicator) pauseIndicator.style.display = 'none';
+      if (btnPlayPause) btnPlayPause.innerHTML = '&#10074;&#10074;';
+      if (this.videoElement) {
+        try { this.videoElement.play(); } catch (e) {}
       }
     }
+  },
+
+  /* ------------------------------------------------------------------------
+     Controls Overlay (OSD) Management
+     ------------------------------------------------------------------------ */
+  showControls: function () {
+    var bar = document.getElementById('castControlsBar');
+    var topBar = document.getElementById('playerTopBar');
+
+    if (bar) bar.className = 'cast-controls-bar';
+    if (topBar) topBar.style.opacity = '1';
+
+    if (this.controlsTimeoutId) {
+      clearTimeout(this.controlsTimeoutId);
+    }
+
+    var self = this;
+    this.controlsTimeoutId = setTimeout(function () {
+      self.hideControls();
+    }, 4500);
+  },
+
+  hideControls: function () {
+    if (!this.isPlaying || this.isPaused) return;
+
+    var bar = document.getElementById('castControlsBar');
+    var topBar = document.getElementById('playerTopBar');
+
+    if (bar) bar.className = 'cast-controls-bar controls-hidden';
+    if (topBar) topBar.style.opacity = '0';
+  },
+
+  seekOffset: function (seconds) {
+    if (!this.videoElement) return;
+
+    var cur = this.videoElement.currentTime || 0;
+    var dur = this.videoElement.duration || this.trackDuration || 0;
+    var target = cur + seconds;
+
+    if (target < 0) target = 0;
+    if (dur > 0 && target > dur) target = dur;
+
+    try {
+      this.videoElement.currentTime = target;
+    } catch (e) {}
+
+    this.showControls();
+  },
+
+  onProgressClick: function (event) {
+    if (!this.videoElement) return;
+
+    var wrap = document.getElementById('castProgressWrap');
+    if (!wrap) return;
+
+    var rect = wrap.getBoundingClientRect();
+    var clickX = (event.clientX || event.pageX) - rect.left;
+    var pct = Math.max(0, Math.min(1, clickX / rect.width));
+
+    var dur = this.videoElement.duration || this.trackDuration || 0;
+    if (dur > 0) {
+      try {
+        this.videoElement.currentTime = pct * dur;
+      } catch (e) {}
+    }
+
+    this.showControls();
   },
 
   /* ------------------------------------------------------------------------
@@ -358,19 +476,71 @@ var App = {
     var self = this;
     if (!this.videoElement) return;
 
+    this.videoElement.addEventListener('timeupdate', function () {
+      if (!self.videoElement) return;
+
+      var cur = self.videoElement.currentTime;
+      var dur = self.videoElement.duration || self.trackDuration || 0;
+
+      // If playback is advancing, hide buffering indicator immediately
+      if (cur > 0) {
+        var badge = document.getElementById('playerBufferingBadge');
+        if (badge && badge.style.display !== 'none' && badge.innerHTML.indexOf('error') === -1) {
+          badge.style.display = 'none';
+        }
+      }
+
+      var curEl = document.getElementById('castTimeCurrent');
+      if (curEl) curEl.innerHTML = self.formatTime(cur);
+
+      var totalEl = document.getElementById('castTimeTotal');
+      if (totalEl && dur > 0) totalEl.innerHTML = self.formatTime(dur);
+
+      var fill = document.getElementById('castProgressFill');
+      if (fill && dur > 0) {
+        var pct = Math.min(100, (cur / dur) * 100);
+        fill.style.width = pct + '%';
+      }
+    });
+
     this.videoElement.addEventListener('loadstart', function () {
       self.log('Video loadstart');
-      self.showOsd(null, 'Connecting to stream...');
+      var badge = document.getElementById('playerBufferingBadge');
+      if (badge) {
+        badge.innerHTML = 'CONNECTING...';
+        badge.style.display = 'inline-block';
+        badge.style.backgroundColor = '#f59e0b';
+        badge.style.color = '#000000';
+      }
+    });
+
+    this.videoElement.addEventListener('loadeddata', function () {
+      self.log('Video loadeddata event fired');
+      var badge = document.getElementById('playerBufferingBadge');
+      if (badge) badge.style.display = 'none';
+    });
+
+    this.videoElement.addEventListener('canplay', function () {
+      self.log('Video canplay event fired');
+      var badge = document.getElementById('playerBufferingBadge');
+      if (badge) badge.style.display = 'none';
+      self.showControls();
     });
 
     this.videoElement.addEventListener('waiting', function () {
       self.log('Video buffering');
-      self.showOsd(null, 'Buffering...');
+      var badge = document.getElementById('playerBufferingBadge');
+      if (badge) {
+        badge.innerHTML = 'BUFFERING...';
+        badge.style.display = 'inline-block';
+      }
     });
 
     this.videoElement.addEventListener('playing', function () {
       self.log('Video playing event fired');
-      self.showOsd(null, '');
+      var badge = document.getElementById('playerBufferingBadge');
+      if (badge) badge.style.display = 'none';
+      self.showControls();
     });
 
     this.videoElement.addEventListener('ended', function () {
@@ -378,46 +548,34 @@ var App = {
       self.sendNext();
     });
 
-    this.videoElement.addEventListener('error', function () {
-      var err = self.videoElement.error ? self.videoElement.error.code : 'unknown';
-      var errMsg = 'Playback error (Code: ' + err + ')';
-      if (err === 4) {
-        errMsg = 'Stream error (Code: 4 - Unsupported format / 403)';
+    this.videoElement.addEventListener('stalled', function () {
+      self.log('Video stalled');
+      var badge = document.getElementById('playerBufferingBadge');
+      if (badge && (!self.videoElement || self.videoElement.currentTime === 0)) {
+        badge.innerHTML = 'WAITING STREAM...';
+        badge.style.display = 'inline-block';
       }
-      self.log('Video error encountered: ' + err);
-      self.showOsd(null, errMsg);
     });
-  },
 
-  /* ------------------------------------------------------------------------
-     OSD Management
-     ------------------------------------------------------------------------ */
-  showOsd: function (title, subtitle) {
-    var osd = document.getElementById('playerOsd');
-    var titleEl = document.getElementById('osdTitle');
-    var subEl = document.getElementById('osdQueueStatus');
+    this.videoElement.addEventListener('error', function () {
+      var err = self.videoElement.error ? self.videoElement.error.code : 0;
+      var reason = 'Stream error';
+      if (err === 1) reason = 'Aborted';
+      else if (err === 2) reason = 'Network failed';
+      else if (err === 3) reason = 'Decode failed';
+      else if (err === 4) reason = 'Format not supported';
+      var errMsg = reason + ' (' + err + ')';
+      self.log('Video error encountered: ' + errMsg);
 
-    if (title && titleEl) titleEl.innerHTML = this.escapeHtml(title);
-    if (typeof subtitle === 'string' && subEl) subEl.innerHTML = this.escapeHtml(subtitle);
-
-    if (osd) {
-      osd.className = 'osdVisible';
-    }
-
-    if (this.osdTimeoutId) {
-      clearTimeout(this.osdTimeoutId);
-    }
-    var self = this;
-    this.osdTimeoutId = setTimeout(function () {
-      self.hideOsd();
-    }, 4000);
-  },
-
-  hideOsd: function () {
-    var osd = document.getElementById('playerOsd');
-    if (osd) {
-      osd.className = 'osdHidden';
-    }
+      var badge = document.getElementById('playerBufferingBadge');
+      if (badge) {
+        badge.innerHTML = errMsg;
+        badge.style.display = 'inline-block';
+        badge.style.backgroundColor = '#ef4444';
+        badge.style.color = '#ffffff';
+      }
+      self.showControls();
+    });
   },
 
   /* ------------------------------------------------------------------------
@@ -462,26 +620,25 @@ var App = {
         } catch (e) {}
       }
     });
+    this.showControls();
   },
 
   sendNext: function () {
     this.log('Sending NEXT command to server');
-    this.showOsd('Loading next item...', '');
     var self = this;
     this.sendPostCommand('/next', function () {
-      /* Force immediate status poll to catch newly activated track */
       self.pollStatus();
     });
+    this.showControls();
   },
 
   sendPrevious: function () {
     this.log('Sending PREVIOUS command to server');
-    this.showOsd('Loading previous item...', '');
     var self = this;
     this.sendPostCommand('/previous', function () {
-      /* Force immediate status poll */
       self.pollStatus();
     });
+    this.showControls();
   },
 
   /* ------------------------------------------------------------------------
@@ -494,7 +651,6 @@ var App = {
       event = event || window.event;
       var code = event.keyCode;
 
-      /* Samsung Orsay keycodes with PC browser fallbacks */
       var KEY_RETURN = (tvKey && tvKey.KEY_RETURN) ? tvKey.KEY_RETURN : 10009;
       var KEY_EXIT = (tvKey && tvKey.KEY_EXIT) ? tvKey.KEY_EXIT : 10182;
       var KEY_STOP = (tvKey && tvKey.KEY_STOP) ? tvKey.KEY_STOP : 70;
@@ -503,8 +659,6 @@ var App = {
       var KEY_PLAY_PAUSE = (tvKey && tvKey.KEY_PLAY_PAUSE) ? tvKey.KEY_PLAY_PAUSE : 10252;
       var KEY_FF = (tvKey && tvKey.KEY_FF) ? tvKey.KEY_FF : 72;
       var KEY_RW = (tvKey && tvKey.KEY_RW) ? tvKey.KEY_RW : 69;
-      var KEY_CH_UP = (tvKey && tvKey.KEY_CH_UP) ? tvKey.KEY_CH_UP : 68;
-      var KEY_CH_DOWN = (tvKey && tvKey.KEY_CH_DOWN) ? tvKey.KEY_CH_DOWN : 65;
 
       /* 1. Return / Back / Exit */
       if (code === KEY_RETURN || code === KEY_EXIT || code === 27 || code === 8) {
@@ -514,7 +668,6 @@ var App = {
           event.returnValue = false;
           return false;
         } else {
-          /* In standby mode, let Orsay return or exit */
           if (widgetAPI && widgetAPI.sendReturnEvent) {
             widgetAPI.sendReturnEvent();
             if (event.preventDefault) event.preventDefault();
@@ -525,7 +678,7 @@ var App = {
       }
 
       /* 2. Stop Key */
-      if (code === KEY_STOP || code === 413 || code === 83) { // 83 = 's'
+      if (code === KEY_STOP || code === 413 || code === 83) {
         if (self.isPlaying) {
           self.sendStop();
           if (event.preventDefault) event.preventDefault();
@@ -545,28 +698,35 @@ var App = {
         }
       }
 
-      /* 4. Next Track (FF, Channel Up, Right Arrow, 'N') */
-      if (code === KEY_FF || code === KEY_CH_UP || code === 39 || code === 78) {
+      /* 4. Seek +10s (Right Arrow or FastForward) */
+      if (code === KEY_FF || code === 417 || code === 10253 || code === 39) {
         if (self.isPlaying) {
-          self.sendNext();
+          self.seekOffset(10);
           if (event.preventDefault) event.preventDefault();
           event.returnValue = false;
           return false;
         }
       }
 
-      /* 5. Previous Track (RW, Channel Down, Left Arrow, 'P') */
-      if (code === KEY_RW || code === KEY_CH_DOWN || code === 37 || code === 80) {
+      /* 5. Seek -10s (Left Arrow or Rewind) */
+      if (code === KEY_RW || code === 412 || code === 10254 || code === 37) {
         if (self.isPlaying) {
-          self.sendPrevious();
+          self.seekOffset(-10);
           if (event.preventDefault) event.preventDefault();
           event.returnValue = false;
           return false;
         }
+      }
+
+      /* 6. Up / Down arrows: Wake up controls */
+      if (code === 38 || code === 40) {
+        self.showControls();
+        if (event.preventDefault) event.preventDefault();
+        event.returnValue = false;
+        return false;
       }
 
       return true;
     };
   }
 };
-

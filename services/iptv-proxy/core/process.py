@@ -16,13 +16,15 @@ active_streams = set()
 
 def release_os_memory():
     """Trigger Python GC and force glibc malloc_trim to return free memory to the Linux kernel."""
-    gc.collect()
     try:
-        libc_name = ctypes.util.find_library('c')
-        if libc_name:
-            libc = ctypes.CDLL(libc_name)
-            if hasattr(libc, 'malloc_trim'):
-                libc.malloc_trim(0)
+        if gc is not None and hasattr(gc, 'collect'):
+            gc.collect()
+        if ctypes and hasattr(ctypes, 'util') and hasattr(ctypes.util, 'find_library'):
+            libc_name = ctypes.util.find_library('c')
+            if libc_name:
+                libc = ctypes.CDLL(libc_name)
+                if hasattr(libc, 'malloc_trim'):
+                    libc.malloc_trim(0)
     except Exception:
         pass
 
